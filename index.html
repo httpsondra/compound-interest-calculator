@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kalkulačka složeného úročení</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Investiční kalkulačka</p>
+        <h1>Složené úročení bez zbytečností</h1>
+        <p class="subtitle">
+          Nastav základní měsíční vklad, sazbu a délku investování. Pokud přidáš speciální období,
+          kalkulačka v daném rozsahu použije částku z období místo hlavního měsíčního vkladu.
+        </p>
+      </div>
+      <div class="hero-card">
+        <span>Výsledek</span>
+        <strong id="heroValue">— Kč</strong>
+        <small>zobrazí se po výpočtu</small>
+      </div>
+    </section>
+
+    <section class="panel">
+      <form id="calculatorForm">
+        <div class="section-title">
+          <h2>Základní nastavení</h2>
+          <p>Tyto hodnoty platí pro celou investici, pokud je nepřepíšeš obdobím níže.</p>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>Počáteční vklad</span>
+            <div class="input-wrap">
+              <input type="number" id="initialDeposit" min="0" step="any" value="10000" />
+              <em>Kč</em>
+            </div>
+          </label>
+
+          <label class="field highlight">
+            <span>Hlavní měsíční vklad</span>
+            <div class="input-wrap">
+              <input type="number" id="baseMonthlyDeposit" min="0" step="any" value="2000" />
+              <em>Kč</em>
+            </div>
+          </label>
+
+          <label class="field">
+            <span>Roční zhodnocení</span>
+            <div class="input-wrap">
+              <input type="number" id="annualRate" min="0" step="any" value="7" />
+              <em>%</em>
+            </div>
+          </label>
+
+          <label class="field">
+            <span>Doba investování</span>
+            <div class="input-wrap">
+              <input type="number" id="totalYears" min="1" step="any" value="20" />
+              <em>let</em>
+            </div>
+          </label>
+        </div>
+
+        <div class="notice">
+          <strong>Důležité:</strong>
+          Když přidáš období, například od roku 3 do roku 5 s vkladem 5 000 Kč,
+          v tomto rozsahu se nebude počítat hlavní měsíční vklad, ale částka z daného období.
+        </div>
+
+        <div class="section-title split">
+          <div>
+            <h2>Speciální období</h2>
+            <p>Například: první 2 roky 1 500 Kč, potom od 3. do 5. roku 4 000 Kč.</p>
+          </div>
+          <button type="button" class="secondary" id="addPeriodBtn">+ Přidat období</button>
+        </div>
+
+        <div id="periodsContainer" class="periods"></div>
+
+        <button type="submit" class="primary">Spočítat investici</button>
+      </form>
+    </section>
+
+    <section id="results" class="results hidden">
+      <div class="result-card main">
+        <span>Konečný stav</span>
+        <strong id="finalValue">0 Kč</strong>
+      </div>
+      <div class="result-card">
+        <span>Celkem vloženo</span>
+        <strong id="totalInvested">0 Kč</strong>
+      </div>
+      <div class="result-card">
+        <span>Zisk ze zhodnocení</span>
+        <strong id="interestEarned">0 Kč</strong>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
