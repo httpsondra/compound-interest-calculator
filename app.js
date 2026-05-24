@@ -1,154 +1,174 @@
-let periodId = 0;
 
-const form = document.getElementById("calculatorForm");
-const periodsContainer = document.getElementById("periodsContainer");
-const addPeriodBtn = document.getElementById("addPeriodBtn");
+const translations={
+en:{
+eyebrow:"Investment Calculator",
+heroTitle:"Compound interest made simple.",
+heroSubtitle:"Set your monthly contribution, investment periods and expected yearly return.",
+heroResult:"Estimated value",
+initialDeposit:"Initial deposit",
+monthlyDeposit:"Monthly contribution",
+annualReturn:"Annual return (%)",
+investmentLength:"Investment length (years)",
+notice:"Special periods override the default monthly contribution during selected years.",
+specialPeriods:"Special periods",
+specialPeriodsSub:"Example: invest 4 000 Kč/month from year 3 to year 5.",
+addPeriod:"+ Add period",
+calculate:"Calculate",
+finalValue:"Final value",
+invested:"Invested",
+profit:"Profit",
+period:"Period",
+amount:"Monthly amount",
+from:"From year",
+to:"To year",
+delete:"Delete"
+},
+cs:{
+eyebrow:"Investiční kalkulačka",
+heroTitle:"Složené úročení jednoduše.",
+heroSubtitle:"Nastav měsíční vklad, investiční období a očekávané roční zhodnocení.",
+heroResult:"Odhadovaná hodnota",
+initialDeposit:"Počáteční vklad",
+monthlyDeposit:"Měsíční vklad",
+annualReturn:"Roční zhodnocení (%)",
+investmentLength:"Délka investice (roky)",
+notice:"Speciální období přepíšou hlavní měsíční vklad v daném rozsahu let.",
+specialPeriods:"Speciální období",
+specialPeriodsSub:"Například: investuj 4 000 Kč měsíčně od 3. do 5. roku.",
+addPeriod:"+ Přidat období",
+calculate:"Spočítat",
+finalValue:"Konečný stav",
+invested:"Vloženo",
+profit:"Zisk",
+period:"Období",
+amount:"Měsíční částka",
+from:"Od roku",
+to:"Do roku",
+delete:"Smazat"
+}
+};
 
-addPeriodBtn.addEventListener("click", () => addPeriod());
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
-  calculate();
+let currentLang="en";
+let periodId=0;
+
+function t(key){
+return translations[currentLang][key];
+}
+
+function applyTranslations(){
+document.querySelectorAll("[data-i18n]").forEach(el=>{
+el.textContent=t(el.dataset.i18n);
+});
+}
+
+document.getElementById("languageSwitcher").addEventListener("change",(e)=>{
+currentLang=e.target.value;
+applyTranslations();
+refreshSummaries();
 });
 
-function addPeriod(values = {}) {
-  periodId += 1;
+document.getElementById("addPeriodBtn").addEventListener("click",addPeriod);
 
-  const details = document.createElement("details");
-  details.className = "period";
-  details.open = true;
-  details.dataset.id = String(periodId);
+function addPeriod(){
+periodId++;
 
-  details.innerHTML = `
-    <summary>Období ${periodId}</summary>
-    <div class="period-content">
-      <div class="period-grid">
-        <label class="field">
-          <span>Měsíční vklad v období</span>
-          <div class="input-wrap">
-            <input class="period-amount" type="number" min="0" step="any" value="${values.amount ?? ""}" placeholder="např. 4000">
-            <em>Kč</em>
-          </div>
-        </label>
+const el=document.createElement("details");
+el.className="period";
+el.open=true;
 
-        <label class="field">
-          <span>Od roku investování</span>
-          <div class="input-wrap">
-            <input class="period-from" type="number" min="1" step="any" value="${values.from ?? ""}" placeholder="např. 3">
-            <em>rok</em>
-          </div>
-        </label>
+el.innerHTML=`
+<summary></summary>
+<div class="period-content">
+<label class="field">
+<span>${t("amount")}</span>
+<input class="period-amount" type="number" value="4000">
+</label>
 
-        <label class="field">
-          <span>Do roku investování</span>
-          <div class="input-wrap">
-            <input class="period-to" type="number" min="1" step="any" value="${values.to ?? ""}" placeholder="např. 5">
-            <em>rok</em>
-          </div>
-        </label>
+<label class="field">
+<span>${t("from")}</span>
+<input class="period-from" type="number" value="3">
+</label>
 
-        <button class="remove" type="button">Smazat</button>
-      </div>
-    </div>
-  `;
+<label class="field">
+<span>${t("to")}</span>
+<input class="period-to" type="number" value="5">
+</label>
 
-  details.querySelector(".remove").addEventListener("click", () => {
-    details.remove();
-    refreshSummaries();
-  });
+<button class="remove">${t("delete")}</button>
+</div>
+`;
 
-  details.querySelectorAll("input").forEach((input) => {
-    input.addEventListener("input", refreshSummaries);
-  });
+el.querySelector(".remove").addEventListener("click",()=>{
+el.remove();
+refreshSummaries();
+});
 
-  periodsContainer.appendChild(details);
-  refreshSummaries();
+el.querySelectorAll("input").forEach(input=>{
+input.addEventListener("input",refreshSummaries);
+});
+
+document.getElementById("periodsContainer").appendChild(el);
+
+refreshSummaries();
 }
 
-function refreshSummaries() {
-  [...periodsContainer.querySelectorAll(".period")].forEach((period, index) => {
-    const amount = Number(period.querySelector(".period-amount").value);
-    const from = Number(period.querySelector(".period-from").value);
-    const to = Number(period.querySelector(".period-to").value);
+function refreshSummaries(){
+document.querySelectorAll(".period").forEach((period,index)=>{
+const amount=period.querySelector(".period-amount").value;
+const from=period.querySelector(".period-from").value;
+const to=period.querySelector(".period-to").value;
 
-    let text = `Období ${index + 1}`;
-    if (amount && from && to) {
-      text += `: ${formatShort(amount)} Kč / měsíc od ${from}. do ${to}. roku`;
-    }
-
-    period.querySelector("summary").firstChild.textContent = text;
-  });
+period.querySelector("summary").textContent=
+`${t("period")} ${index+1}: ${amount} Kč (${from}-${to})`;
+});
 }
 
-function calculate() {
-  const initialDeposit = getNumber("initialDeposit");
-  const baseMonthlyDeposit = getNumber("baseMonthlyDeposit");
-  const annualRate = getNumber("annualRate");
-  const totalYears = getNumber("totalYears");
+document.getElementById("calculateBtn").addEventListener("click",calculate);
 
-  if (totalYears <= 0) {
-    alert("Doba investování musí být větší než 0.");
-    return;
-  }
+function calculate(){
+const initial=Number(document.getElementById("initialDeposit").value);
+const monthly=Number(document.getElementById("baseMonthlyDeposit").value);
+const rate=Number(document.getElementById("annualRate").value)/100/12;
+const years=Number(document.getElementById("totalYears").value);
 
-  const totalMonths = Math.round(totalYears * 12);
-  const monthlyRate = annualRate / 100 / 12;
-  const monthlyDeposits = Array(totalMonths).fill(baseMonthlyDeposit);
+const months=years*12;
 
-  const periods = [...periodsContainer.querySelectorAll(".period")].map((period) => ({
-    amount: Number(period.querySelector(".period-amount").value),
-    from: Number(period.querySelector(".period-from").value),
-    to: Number(period.querySelector(".period-to").value),
-  }));
+const deposits=Array(months).fill(monthly);
 
-  for (const period of periods) {
-    if (!period.amount || !period.from || !period.to) continue;
+document.querySelectorAll(".period").forEach(period=>{
+const amount=Number(period.querySelector(".period-amount").value);
+const from=Number(period.querySelector(".period-from").value);
+const to=Number(period.querySelector(".period-to").value);
 
-    if (period.to < period.from) {
-      alert("U jednoho období je rok 'do' menší než rok 'od'.");
-      return;
-    }
+for(let i=(from-1)*12;i<to*12;i++){
+deposits[i]=amount;
+}
+});
 
-    const startMonth = Math.max(0, Math.round((period.from - 1) * 12));
-    const endMonth = Math.min(totalMonths, Math.round(period.to * 12));
+let balance=initial;
+let invested=initial;
 
-    for (let month = startMonth; month < endMonth; month++) {
-      monthlyDeposits[month] = period.amount;
-    }
-  }
-
-  let balance = initialDeposit;
-  let totalInvested = initialDeposit;
-
-  for (let month = 0; month < totalMonths; month++) {
-    balance = balance * (1 + monthlyRate);
-    balance += monthlyDeposits[month];
-    totalInvested += monthlyDeposits[month];
-  }
-
-  const interest = balance - totalInvested;
-
-  document.getElementById("heroValue").textContent = `${formatMoney(balance)} Kč`;
-  document.getElementById("finalValue").textContent = `${formatMoney(balance)} Kč`;
-  document.getElementById("totalInvested").textContent = `${formatMoney(totalInvested)} Kč`;
-  document.getElementById("interestEarned").textContent = `${formatMoney(interest)} Kč`;
-  document.getElementById("results").classList.remove("hidden");
+for(let i=0;i<months;i++){
+balance*=1+rate;
+balance+=deposits[i];
+invested+=deposits[i];
 }
 
-function getNumber(id) {
-  return Number(document.getElementById(id).value) || 0;
+const profit=balance-invested;
+
+document.getElementById("heroValue").textContent=format(balance);
+document.getElementById("finalValue").textContent=format(balance);
+document.getElementById("totalInvested").textContent=format(invested);
+document.getElementById("interestEarned").textContent=format(profit);
+
+document.getElementById("results").classList.remove("hidden");
 }
 
-function formatMoney(value) {
-  return value.toLocaleString("cs-CZ", {
-    maximumFractionDigits: 0,
-  });
+function format(v){
+return new Intl.NumberFormat(currentLang==="cs"?"cs-CZ":"en-US",{
+maximumFractionDigits:0
+}).format(v)+" Kč";
 }
 
-function formatShort(value) {
-  return value.toLocaleString("cs-CZ", {
-    maximumFractionDigits: 0,
-  });
-}
-
-// Ukázkové období, aby uživatel hned viděl princip.
-addPeriod({ amount: 4000, from: 3, to: 5 });
+applyTranslations();
+addPeriod();
