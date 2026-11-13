@@ -1,0 +1,225 @@
+/*
+ * InvestCalc design tokens — "Aurora" visual language.
+ * Blue is the brand. Colour roles are semantic and redefined per theme
+ * (never inverted mechanically). Chart series use deliberately distinct hues:
+ * value = blue, contributed capital = sand, real value = cyan,
+ * positive = green, warning = amber, negative = red.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Type */
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 15px;
+  --fs-md: 17px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
+  --fs-2xl: 34px;
+  --fs-display: clamp(38px, 4.4vw, 58px);
+  --lh-tight: 1.1;
+  --lh-snug: 1.3;
+  --lh-body: 1.5;
+
+  /* Spacing (4 px grid) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* Radius */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --t-fast: 120ms;
+  --t-base: 180ms;
+  --t-slow: 280ms;
+
+  /* Layout */
+  --header-h: 60px;
+  --controls-w: 404px;
+  --page-max: 1360px;
+  --gutter: clamp(16px, 3vw, 32px);
+  --tap: 44px;
+}
+
+/* ───────────── Light theme ───────────── */
+:root,
+:root[data-theme='light'] {
+  --bg: #f3f6fb;
+  --bg-deep: #e9eff8;
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-solid: #ffffff;
+  --surface-2: #f2f5fa;
+  --surface-3: #e8eef7;
+  --surface-hover: #edf2fa;
+  --border: #dce4f0;
+  --border-strong: #c3cfe1;
+  --edge: rgba(255, 255, 255, 0.9);
+  --text: #0a1630;
+  --text-2: #3e4e6a;
+  --text-3: #5a6a85;
+  --text-on-accent: #ffffff;
+
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-text: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.09);
+  --accent-soft-2: rgba(37, 99, 235, 0.16);
+  --focus: #2563eb;
+
+  --c-value: #2563eb;
+  --c-value-fill-top: rgba(37, 99, 235, 0.26);
+  --c-value-fill-bottom: rgba(37, 99, 235, 0.02);
+  --c-contrib: #a87a2c;
+  --c-contrib-fill: rgba(168, 122, 44, 0.16);
+  --c-real: #0284c7;
+  --c-goal: #0a1630;
+  --c-pos: #137a3b;
+  --c-warn: #a95c06;
+  --c-warn-soft: rgba(217, 119, 6, 0.1);
+  --c-neg: #c42525;
+  --c-neg-soft: rgba(220, 38, 38, 0.08);
+  --c-grid: rgba(10, 22, 48, 0.07);
+  --c-axis: #5a6a85;
+
+  --series-1: #2563eb;
+  --series-2: #c2410c;
+  --series-3: #0f9488;
+  --series-4: #a21caf;
+
+  --shadow-card: 0 1px 2px rgba(10, 22, 48, 0.04), 0 8px 24px -12px rgba(10, 22, 48, 0.12);
+  --shadow-pop: 0 12px 40px -12px rgba(10, 22, 48, 0.28), 0 2px 6px rgba(10, 22, 48, 0.06);
+  --shadow-thumb: 0 1px 3px rgba(10, 22, 48, 0.25);
+
+  --aurora-1: rgba(37, 99, 235, 0.16);
+  --aurora-2: rgba(56, 189, 248, 0.14);
+  --aurora-3: rgba(99, 102, 241, 0.07);
+  --glass-blur: 16px;
+}
+
+/* ───────────── Dark theme ───────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #050b18;
+    --bg-deep: #030712;
+    --surface: rgba(13, 25, 48, 0.74);
+    --surface-solid: #0c1830;
+    --surface-2: rgba(25, 41, 74, 0.62);
+    --surface-3: rgba(37, 56, 96, 0.6);
+    --surface-hover: rgba(37, 56, 96, 0.5);
+    --border: rgba(138, 168, 230, 0.15);
+    --border-strong: rgba(138, 168, 230, 0.3);
+    --edge: rgba(190, 215, 255, 0.08);
+    --text: #eef3fb;
+    --text-2: #b0bdd4;
+    --text-3: #8695b0;
+    --text-on-accent: #ffffff;
+
+    --accent: #4f8dff;
+    --accent-strong: #2f6ff0;
+    --accent-text: #8cb6ff;
+    --accent-soft: rgba(79, 141, 255, 0.13);
+    --accent-soft-2: rgba(79, 141, 255, 0.22);
+    --focus: #8cb6ff;
+
+    --c-value: #5b9bff;
+    --c-value-fill-top: rgba(79, 141, 255, 0.36);
+    --c-value-fill-bottom: rgba(79, 141, 255, 0.02);
+    --c-contrib: #dcbd84;
+    --c-contrib-fill: rgba(220, 189, 132, 0.15);
+    --c-real: #5ccaf6;
+    --c-goal: #eef3fb;
+    --c-pos: #5ad593;
+    --c-warn: #f4bb53;
+    --c-warn-soft: rgba(244, 187, 83, 0.1);
+    --c-neg: #ff8a8a;
+    --c-neg-soft: rgba(255, 138, 138, 0.1);
+    --c-grid: rgba(190, 215, 255, 0.07);
+    --c-axis: #8695b0;
+
+    --series-1: #5b9bff;
+    --series-2: #f0a35a;
+    --series-3: #3fd0bd;
+    --series-4: #e28bf2;
+
+    --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.2), 0 18px 40px -24px rgba(0, 0, 0, 0.7);
+    --shadow-pop: 0 18px 50px -12px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-thumb: 0 1px 4px rgba(0, 0, 0, 0.6);
+
+    --aurora-1: rgba(37, 99, 235, 0.32);
+    --aurora-2: rgba(56, 189, 248, 0.16);
+    --aurora-3: rgba(99, 102, 241, 0.14);
+    --glass-blur: 20px;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #050b18;
+  --bg-deep: #030712;
+  --surface: rgba(13, 25, 48, 0.74);
+  --surface-solid: #0c1830;
+  --surface-2: rgba(25, 41, 74, 0.62);
+  --surface-3: rgba(37, 56, 96, 0.6);
+  --surface-hover: rgba(37, 56, 96, 0.5);
+  --border: rgba(138, 168, 230, 0.15);
+  --border-strong: rgba(138, 168, 230, 0.3);
+  --edge: rgba(190, 215, 255, 0.08);
+  --text: #eef3fb;
+  --text-2: #b0bdd4;
+  --text-3: #8695b0;
+  --text-on-accent: #ffffff;
+
+  --accent: #4f8dff;
+  --accent-strong: #2f6ff0;
+  --accent-text: #8cb6ff;
+  --accent-soft: rgba(79, 141, 255, 0.13);
+  --accent-soft-2: rgba(79, 141, 255, 0.22);
+  --focus: #8cb6ff;
+
+  --c-value: #5b9bff;
+  --c-value-fill-top: rgba(79, 141, 255, 0.36);
+  --c-value-fill-bottom: rgba(79, 141, 255, 0.02);
+  --c-contrib: #dcbd84;
+  --c-contrib-fill: rgba(220, 189, 132, 0.15);
+  --c-real: #5ccaf6;
+  --c-goal: #eef3fb;
+  --c-pos: #5ad593;
+  --c-warn: #f4bb53;
+  --c-warn-soft: rgba(244, 187, 83, 0.1);
+  --c-neg: #ff8a8a;
+  --c-neg-soft: rgba(255, 138, 138, 0.1);
+  --c-grid: rgba(190, 215, 255, 0.07);
+  --c-axis: #8695b0;
+
+  --series-1: #5b9bff;
+  --series-2: #f0a35a;
+  --series-3: #3fd0bd;
+  --series-4: #e28bf2;
+
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.2), 0 18px 40px -24px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 18px 50px -12px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-thumb: 0 1px 4px rgba(0, 0, 0, 0.6);
+
+  --aurora-1: rgba(37, 99, 235, 0.32);
+  --aurora-2: rgba(56, 189, 248, 0.16);
+  --aurora-3: rgba(99, 102, 241, 0.14);
+  --glass-blur: 20px;
+}
