@@ -7,6 +7,7 @@ import { useApp } from '../../state/context'
 import { Icon } from '../ui/Icon'
 import { NumberField } from '../ui/NumberField'
 import { Select } from '../ui/controls'
+import { HelpTip } from '../ui/HelpTip'
 
 /**
  * Contribution timeline: a step visualisation of the whole schedule plus
@@ -121,6 +122,7 @@ export function Timeline() {
                     />
                     <Select<Frequency>
                       label={t.inputs.frequency}
+                      help="periodFrequency"
                       className="freq-select"
                       value={p.frequency}
                       options={FREQUENCIES.map((v) => ({ value: v, label: t.freq[v] }))}
@@ -129,6 +131,7 @@ export function Timeline() {
                     <NumberField
                       id={`end-${p.id}`}
                       size="sm"
+                      help="boundaries"
                       label={t.timeline.until}
                       ariaLabel={`${fill(t.timeline.period, { n: i + 1 })} – ${t.timeline.until}`}
                       value={r.endYear}
@@ -143,6 +146,7 @@ export function Timeline() {
                       <Icon name={p.paused ? 'play' : 'pause'} size={14} />
                       {p.paused ? t.timeline.resume : t.timeline.pause}
                     </button>
+                    <HelpTip topic="paused" label={t.timeline.paused} />
                     <button type="button" className="chip-btn" onClick={() => setPeriods((ps) => splitPeriod(ps, i))}>
                       <Icon name="copy" size={14} />
                       {t.timeline.duplicate}
@@ -184,7 +188,9 @@ export function Timeline() {
       {covered < H && (
         <div className="inline-warn" role="status">
           <Icon name="warning" size={15} />
-          <span>{fill(t.validation.scheduleShort, { year: covered + 1 })}</span>
+          <span>
+            {fill(t.validation.scheduleShort, { year: covered + 1 })} <HelpTip topic="gaps" />
+          </span>
           <button type="button" className="link-btn" onClick={() => setPeriods((ps) => extendTo(ps, H))}>
             {fill(t.timeline.extendFix, { year: H })}
           </button>

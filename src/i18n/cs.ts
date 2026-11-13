@@ -337,6 +337,8 @@ export const cs: Dict = {
     volatility: 'Roční volatilita',
     volatilityHelp:
       'Směrodatná odchylka ročních logaritmických výnosů. Široké akciové indexy měly historicky zhruba 15–20 %; jde o vstup, ne o fakt o budoucnosti.',
+    expectedReturn: 'Očekávaný výnos (z vašeho plánu)',
+    goalProbLabel: 'Šance na dosažení cíle',
     simulations: 'Počet simulací',
     seed: 'Náhodné semínko {seed}',
     rerun: 'Spustit znovu s novým semínkem',
@@ -390,6 +392,12 @@ export const cs: Dict = {
     months: { one: '{n} měsíc', few: '{n} měsíce', many: '{n} měsíce', other: '{n} měsíců' },
     periods: { one: '{n} období', few: '{n} období', many: '{n} období', other: '{n} období' },
     items: { one: '{n} položka', few: '{n} položky', many: '{n} položky', other: '{n} položek' },
+  },
+  help: {
+    about: 'Vysvětlení: {label}',
+    example: 'Příklad',
+    learnMore: 'Více informací',
+    less: 'Méně',
   },
   common: {
     on: 'Zapnuto',

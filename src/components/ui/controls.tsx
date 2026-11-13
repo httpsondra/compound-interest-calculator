@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useI18n } from '../../i18n'
 import { Icon } from './Icon'
-import { InfoTip } from './InfoTip'
+import { HelpTip } from './HelpTip'
+import type { HelpId } from '../../help'
 
 /* ───────── Segmented control (radio group) ───────── */
 
@@ -26,7 +27,7 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void
   hideLabel?: boolean
   size?: 'xs' | 'sm' | 'md'
-  help?: string
+  help?: HelpId
   className?: string
 }) {
   const id = useId()
@@ -49,7 +50,7 @@ export function Segmented<T extends string>({
         <span id={`${id}-l`} className="nf-label">
           {label}
         </span>
-        {help && <InfoTip label={label}>{help}</InfoTip>}
+        {help && <HelpTip topic={help} label={label} />}
       </div>
       <div
         role="radiogroup"
@@ -92,7 +93,7 @@ export function Switch({
   label: string
   checked: boolean
   onChange: (v: boolean) => void
-  help?: string
+  help?: HelpId
   description?: string
 }) {
   const id = useId()
@@ -104,7 +105,7 @@ export function Switch({
         </span>
         {description && <span className="switch-desc">{description}</span>}
       </div>
-      {help && <InfoTip label={label}>{help}</InfoTip>}
+      {help && <HelpTip topic={help} label={label} />}
       <button
         type="button"
         role="switch"
@@ -128,6 +129,7 @@ export function Select<T extends string>({
   onChange,
   hideLabel,
   className,
+  help,
 }: {
   label: string
   value: T
@@ -135,13 +137,17 @@ export function Select<T extends string>({
   onChange: (v: T) => void
   hideLabel?: boolean
   className?: string
+  help?: HelpId
 }) {
   const id = useId()
   return (
     <div className={`select-field${className ? ` ${className}` : ''}`}>
-      <label htmlFor={id} className={`nf-label${hideLabel ? ' sr-only' : ''}`}>
-        {label}
-      </label>
+      <div className={`field-head${hideLabel ? ' sr-only' : ''}`}>
+        <label htmlFor={id} className="nf-label">
+          {label}
+        </label>
+        {help && !hideLabel && <HelpTip topic={help} label={label} />}
+      </div>
       <div className="select-box">
         <select id={id} value={value} onChange={(e) => onChange(e.target.value as T)}>
           {options.map((o) => (

@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../../i18n'
 import { parseNumber } from '../../lib/format'
-import { InfoTip } from './InfoTip'
+import { HelpTip } from './HelpTip'
+import type { HelpId } from '../../help'
 
 export interface SliderSpec {
   min: number
@@ -25,7 +26,8 @@ interface Props {
   prefix?: string
   suffix?: string
   slider?: SliderSpec
-  help?: string
+  help?: HelpId
+  helpExtra?: Record<string, number | null | undefined>
   error?: string | null
   warning?: string | null
   size?: 'lg' | 'md' | 'sm'
@@ -70,6 +72,7 @@ export function NumberField({
   suffix,
   slider,
   help,
+  helpExtra,
   error,
   warning,
   size = 'md',
@@ -152,7 +155,7 @@ export function NumberField({
         <label htmlFor={inputId} className="nf-label">
           {label}
         </label>
-        {help && <InfoTip label={textLabel}>{help}</InfoTip>}
+        {help && <HelpTip topic={help} label={textLabel || undefined} extra={helpExtra} />}
       </div>
       <div className={`nf-box${slider ? ' has-slider' : ''}`}>
         <div className="nf-row" onClick={() => inputRef.current?.focus()}>

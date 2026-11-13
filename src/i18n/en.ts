@@ -335,6 +335,8 @@ export const en = {
     volatility: 'Annual volatility',
     volatilityHelp:
       'Standard deviation of annual log returns. Broad equity indices have historically been around 15–20 %; this is an input, not a fact about the future.',
+    expectedReturn: 'Expected return (from your plan)',
+    goalProbLabel: 'Chance of reaching the goal',
     simulations: 'Simulations',
     seed: 'Random seed {seed}',
     rerun: 'Run again with a new seed',
@@ -388,6 +390,12 @@ export const en = {
     months: { one: '{n} month', few: '{n} months', many: '{n} months', other: '{n} months' },
     periods: { one: '{n} period', few: '{n} periods', many: '{n} periods', other: '{n} periods' },
     items: { one: '{n} item', few: '{n} items', many: '{n} items', other: '{n} items' },
+  },
+  help: {
+    about: 'About “{label}”',
+    example: 'Example',
+    learnMore: 'Learn more',
+    less: 'Show less',
   },
   common: {
     on: 'On',

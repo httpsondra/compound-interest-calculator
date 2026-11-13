@@ -4,6 +4,7 @@ import { totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { XYChart, type Marker, type Series } from '../chart/XYChart'
 import { Segmented } from '../ui/controls'
+import { HelpTip } from '../ui/HelpTip'
 
 export function GrowthChart() {
   const { t, f, fill, duration } = useI18n()
@@ -78,9 +79,12 @@ export function GrowthChart() {
   return (
     <section className="card chart-card" aria-labelledby="chart-h">
       <header className="card-head">
-        <h2 id="chart-h" className="section-title">
-          {t.chart.title}
-        </h2>
+        <div className="title-row">
+          <h2 id="chart-h" className="section-title">
+            {t.chart.title}
+          </h2>
+          <HelpTip topic="chart" label={t.chart.title} />
+        </div>
         <div className="chart-tools">
           {s.inflationEnabled && (
             <Segmented
@@ -95,6 +99,7 @@ export function GrowthChart() {
               onChange={(v) => setShowReal(v === 'real')}
             />
           )}
+          {s.inflationEnabled && <HelpTip topic="nominalReal" label={t.results.valueMode} />}
         </div>
       </header>
       <ul className="legend" aria-label={t.chart.title}>
@@ -151,7 +156,10 @@ export function GrowthChart() {
       <p className="chart-hint">{t.chart.hint}</p>
       {markers.length > 0 && !real && (
         <div className="milestones">
-          <h3 className="mini-title">{t.milestones.title}</h3>
+          <div className="title-row">
+            <h3 className="mini-title">{t.milestones.title}</h3>
+            <HelpTip topic="milestones" label={t.milestones.title} />
+          </div>
           <ul>
             {markers.map((m, i) => (
               <li key={i} className={`milestone milestone--${m.tone}`}>

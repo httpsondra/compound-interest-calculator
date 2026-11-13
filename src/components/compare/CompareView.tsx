@@ -7,6 +7,7 @@ import { useApp } from '../../state/context'
 import { XYChart, type Series } from '../chart/XYChart'
 import { Icon } from '../ui/Icon'
 import { Menu, Segmented } from '../ui/controls'
+import { HelpTip } from '../ui/HelpTip'
 
 const COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)']
 type VariantId = 'plusContribution' | 'returnDown' | 'returnUp' | 'longer' | 'fees'
@@ -127,7 +128,10 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
     <div className="compare">
       <header className="view-head">
         <div>
-          <h1 className="view-title">{t.compare.title}</h1>
+          <div className="title-row">
+            <h1 className="view-title">{t.compare.title}</h1>
+            <HelpTip topic="compare" label={t.compare.title} />
+          </div>
           <p className="view-sub">{fill(t.compare.subtitle, { max: MAX_SCENARIOS })}</p>
         </div>
         <div className="view-actions">
@@ -265,9 +269,12 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
       </section>
 
       <section className="card" aria-labelledby="cmp-table-h">
-        <h2 id="cmp-table-h" className="section-title">
-          {t.compare.metricsTitle}
-        </h2>
+        <div className="title-row">
+          <h2 id="cmp-table-h" className="section-title">
+            {t.compare.metricsTitle}
+          </h2>
+          <HelpTip topic="compareDiff" label={t.compare.metricsTitle} />
+        </div>
         <div className="table-scroll">
           <table className="ctable">
             <thead>

@@ -6,6 +6,7 @@ import { Icon } from '../ui/Icon'
 import { NumberField } from '../ui/NumberField'
 import { Disclosure, Segmented, Select, Switch } from '../ui/controls'
 import { useIssue } from './Controls'
+import { HelpTip } from '../ui/HelpTip'
 
 export function AdvancedSections() {
   const { t, f, lang } = useI18n()
@@ -25,11 +26,12 @@ export function AdvancedSections() {
         active={s.goal.enabled}
         summary={s.goal.enabled ? f.money(s.goal.target, s.currency, { compact: true }) : t.goal.summaryOff}
       >
-        <Switch label={t.goal.enable} checked={s.goal.enabled} onChange={(v) => update((x) => ({ ...x, goal: { ...x.goal, enabled: v } }))} />
+        <Switch label={t.goal.enable} help="goal" checked={s.goal.enabled} onChange={(v) => update((x) => ({ ...x, goal: { ...x.goal, enabled: v } }))} />
         {s.goal.enabled && (
           <>
             <NumberField
               id="f-goal-target"
+              help="goalTarget"
               label={t.goal.target}
               value={s.goal.target}
               min={0}
@@ -41,6 +43,7 @@ export function AdvancedSections() {
             />
             <NumberField
               id="f-goal-year"
+              help="goalYear"
               label={t.goal.year}
               value={s.goal.year}
               min={1}
@@ -53,7 +56,7 @@ export function AdvancedSections() {
             {s.inflationEnabled && (
               <Switch
                 label={t.goal.real}
-                help={t.goal.realHelp}
+                help="goalReal"
                 checked={s.goal.real}
                 onChange={(v) => update((x) => ({ ...x, goal: { ...x.goal, real: v } }))}
               />
@@ -71,7 +74,7 @@ export function AdvancedSections() {
       >
         <Switch
           label={t.inflation.enable}
-          help={t.inflation.help}
+          help="inflation"
           checked={s.inflationEnabled}
           onChange={(v) =>
             update((x) => ({
@@ -85,6 +88,7 @@ export function AdvancedSections() {
         {s.inflationEnabled && (
           <NumberField
             id="f-inflation"
+            help="inflationRate"
             label={t.inflation.rate}
             value={s.inflation}
             min={-50}
@@ -106,13 +110,13 @@ export function AdvancedSections() {
         active={s.feesEnabled}
         summary={s.feesEnabled ? `${f.pct(s.fees.annual, 2)} ${lang === 'cs' ? 'p. a.' : 'p.a.'}` : t.fees.summaryOff}
       >
-        <Switch label={t.fees.enable} checked={s.feesEnabled} onChange={(v) => update((x) => ({ ...x, feesEnabled: v }))} />
+        <Switch label={t.fees.enable} help="fees" checked={s.feesEnabled} onChange={(v) => update((x) => ({ ...x, feesEnabled: v }))} />
         {s.feesEnabled && (
           <>
             <NumberField
               id="f-fee-annual"
               label={t.fees.annual}
-              help={t.fees.annualHelp}
+              help="feeAnnual"
               value={s.fees.annual}
               min={0}
               max={99}
@@ -126,7 +130,7 @@ export function AdvancedSections() {
             <NumberField
               id="f-fee-entry"
               label={t.fees.entry}
-              help={t.fees.entryHelp}
+              help="feeEntry"
               value={s.fees.entry}
               min={0}
               max={100}
@@ -138,6 +142,7 @@ export function AdvancedSections() {
             />
             <NumberField
               id="f-fee-fixed"
+              help="feeFixed"
               label={t.fees.fixed}
               value={s.fees.fixed}
               min={0}
@@ -160,6 +165,7 @@ export function AdvancedSections() {
       >
         <Switch
           label={t.withdrawal.enable}
+          help="withdrawals"
           checked={w.enabled}
           onChange={(v) =>
             update((x) => ({
@@ -177,6 +183,7 @@ export function AdvancedSections() {
             <div className="contrib-row">
               <NumberField
                 id="f-w-amount"
+                help="withdrawalAmount"
                 label={t.withdrawal.amount}
                 value={w.amount}
                 min={0}
@@ -197,6 +204,7 @@ export function AdvancedSections() {
             <div className="pair-row">
               <NumberField
                 id="f-w-start"
+                help="withdrawalStart"
                 label={t.withdrawal.start}
                 value={w.startYear}
                 min={1}
@@ -220,6 +228,7 @@ export function AdvancedSections() {
             </div>
             <Switch
               label={t.withdrawal.untilEnd}
+              help="withdrawalEnd"
               checked={w.endYear == null}
               onChange={(v) =>
                 update((x) => ({
@@ -231,13 +240,14 @@ export function AdvancedSections() {
             {s.inflationEnabled && (
               <Switch
                 label={t.withdrawal.indexed}
-                help={t.withdrawal.indexedHelp}
+                help="withdrawalIndexed"
                 checked={w.indexed}
                 onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, indexed: v } }))}
               />
             )}
             <Switch
               label={t.withdrawal.stop}
+              help="withdrawalStop"
               checked={w.stopContributions}
               onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, stopContributions: v } }))}
             />
@@ -286,6 +296,7 @@ export function AdvancedSections() {
           </div>
         ))}
         {issue('lumpSums') && <p className="nf-msg nf-msg--warn">{issue('lumpSums')}</p>}
+        <div className="row-with-help">
         <button
           type="button"
           className="btn btn--soft btn--block"
@@ -299,6 +310,8 @@ export function AdvancedSections() {
           <Icon name="plus" size={16} />
           {t.lumps.add}
         </button>
+        <HelpTip topic="lumps" label={t.lumps.title} />
+        </div>
       </Disclosure>
 
       <Disclosure
@@ -309,7 +322,7 @@ export function AdvancedSections() {
       >
         <Switch
           label={t.advanced.startAge}
-          help={t.advanced.startAgeHelp}
+          help="startAge"
           checked={s.startAge != null}
           onChange={(v) => update((x) => ({ ...x, startAge: v ? 30 : null }))}
         />
@@ -328,7 +341,7 @@ export function AdvancedSections() {
         )}
         <Segmented
           label={t.advanced.timing}
-          help={t.advanced.timingHelp}
+          help="timing"
           value={s.timing}
           options={[
             { value: 'start', label: t.advanced.timingStart },

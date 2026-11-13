@@ -4,7 +4,7 @@ import { totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { downloadCsv } from '../../lib/csv'
 import { Icon } from '../ui/Icon'
-import { InfoTip } from '../ui/InfoTip'
+import { HelpTip } from '../ui/HelpTip'
 import type { SolveResult } from '../../engine/solvers'
 
 export function Insights() {
@@ -37,9 +37,12 @@ export function Insights() {
   if (!items.length) return null
   return (
     <section className="block insights" aria-labelledby="insights-h">
-      <h2 id="insights-h" className="section-title">
-        {t.insights.title}
-      </h2>
+      <div className="title-row">
+        <h2 id="insights-h" className="section-title">
+          {t.insights.title}
+        </h2>
+        <HelpTip topic="insights" label={t.insights.title} />
+      </div>
       <ul className="insight-list">
         {items.map((it) => (
           <li key={it}>{it}</li>
@@ -69,9 +72,12 @@ export function GoalCard() {
   return (
     <section className={`card goal-card${g.reached ? ' is-reached' : ''}`} aria-labelledby="goal-h">
       <header className="card-head">
-        <h2 id="goal-h" className="section-title">
-          <Icon name="target" size={18} /> {t.goal.cardTitle}
-        </h2>
+        <div className="title-row">
+          <h2 id="goal-h" className="section-title">
+            <Icon name="target" size={18} /> {t.goal.cardTitle}
+          </h2>
+          <HelpTip topic="goal" label={t.goal.cardTitle} />
+        </div>
         <span className="chip">{money(s.goal.target)}{s.goal.real ? ` · ${t.results.real}` : ''}</span>
       </header>
       <p className="goal-status" role="status">
@@ -93,7 +99,9 @@ export function GoalCard() {
           <dd className={g.reached ? 'is-pos' : 'is-warn'}>{money(Math.abs(g.gap))}</dd>
         </div>
         <div className="tile">
-          <dt>{t.goal.timeLabel}</dt>
+          <dt>{t.goal.timeLabel}
+            <HelpTip topic="timeToGoal" label={t.goal.timeLabel} />
+          </dt>
           <dd className="tile-text">
             {ttgYear != null
               ? s.startAge != null
@@ -103,14 +111,18 @@ export function GoalCard() {
           </dd>
         </div>
         <div className="tile">
-          <dt>{constant ? t.goal.requiredConstant : t.goal.requiredExtra}</dt>
+          <dt>{constant ? t.goal.requiredConstant : t.goal.requiredExtra}
+            <HelpTip topic="requiredContribution" label={t.goal.requiredConstant} />
+          </dt>
           <dd>
             {solveText(g.contribution, (v) => `${money(v)} ${constant ? t.per[s.constant.frequency] : t.per.monthly}`, t)}
             {constant && <span className="tile-sub">{fill(t.goal.current, { amount: `${money(s.constant.amount)} ${t.per[s.constant.frequency]}` })}</span>}
           </dd>
         </div>
         <div className="tile">
-          <dt>{t.goal.requiredLump}</dt>
+          <dt>{t.goal.requiredLump}
+            <HelpTip topic="extraLump" label={t.goal.requiredLump} />
+          </dt>
           <dd>{solveText(g.extraInitial, money, t)}</dd>
         </div>
       </dl>
@@ -130,9 +142,12 @@ export function FeeCard() {
   return (
     <section className="block" aria-labelledby="fees-h">
       <header className="card-head">
-        <h2 id="fees-h" className="section-title">
-          {t.fees.cardTitle}
-        </h2>
+        <div className="title-row">
+          <h2 id="fees-h" className="section-title">
+            {t.fees.cardTitle}
+          </h2>
+          <HelpTip topic="feeImpact" label={t.fees.cardTitle} />
+        </div>
       </header>
       <div className="fee-compare">
         <div>
@@ -176,9 +191,12 @@ export function WithdrawalCard() {
   return (
     <section className={`block${dep != null ? ' is-alert' : ''}`} aria-labelledby="wd-h">
       <header className="card-head">
-        <h2 id="wd-h" className="section-title">
-          {t.withdrawal.cardTitle}
-        </h2>
+        <div className="title-row">
+          <h2 id="wd-h" className="section-title">
+            {t.withdrawal.cardTitle}
+          </h2>
+          <HelpTip topic="withdrawals" label={t.withdrawal.cardTitle} />
+        </div>
       </header>
       <p className={`goal-status${dep != null ? ' is-neg' : ''}`} role="status">
         {depYear != null
@@ -189,7 +207,9 @@ export function WithdrawalCard() {
       </p>
       <dl className="tiles">
         <div className="tile">
-          <dt>{t.withdrawal.total}</dt>
+          <dt>{t.withdrawal.total}
+            <HelpTip topic="withdrawn" label={t.withdrawal.total} />
+          </dt>
           <dd>{money(res.totals.withdrawn)}</dd>
         </div>
         <div className="tile">
@@ -198,7 +218,8 @@ export function WithdrawalCard() {
         </div>
         <div className="tile">
           <dt>
-            {t.withdrawal.sustainable} <InfoTip label={t.withdrawal.sustainable}>{t.withdrawal.sustainableHelp}</InfoTip>
+            {t.withdrawal.sustainable}
+            <HelpTip topic="sustainable" label={t.withdrawal.sustainable} />
           </dt>
           <dd>
             {computed.sustainable != null && Number.isFinite(computed.sustainable)
@@ -209,7 +230,9 @@ export function WithdrawalCard() {
         </div>
         {res.totals.shortfall > 0 && (
           <div className="tile">
-            <dt>{t.withdrawal.shortfall}</dt>
+            <dt>{t.withdrawal.shortfall}
+            <HelpTip topic="shortfall" label={t.withdrawal.shortfall} />
+          </dt>
             <dd className="is-neg">{money(res.totals.shortfall)}</dd>
           </div>
         )}
@@ -228,9 +251,12 @@ export function Sensitivity() {
   return (
     <section className="block" aria-labelledby="sens-h">
       <header className="card-head">
-        <h2 id="sens-h" className="section-title">
-          {t.sensitivity.title}
-        </h2>
+        <div className="title-row">
+          <h2 id="sens-h" className="section-title">
+            {t.sensitivity.title}
+          </h2>
+          <HelpTip topic="sensitivity" label={t.sensitivity.title} />
+        </div>
       </header>
       <ul className="sens">
         {sens.map((x, i) => (
@@ -339,9 +365,12 @@ export function YearTable() {
   return (
     <section className="card table-card" aria-labelledby="table-h">
       <header className="card-head">
-        <h2 id="table-h" className="section-title">
-          {t.table.title}
-        </h2>
+        <div className="title-row">
+          <h2 id="table-h" className="section-title">
+            {t.table.title}
+          </h2>
+          <HelpTip topic="yearTable" label={t.table.title} />
+        </div>
         <div className="card-actions">
           <button type="button" className="btn btn--ghost btn--sm" onClick={exportCsv}>
             <Icon name="download" size={16} />

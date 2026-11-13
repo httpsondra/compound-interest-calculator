@@ -4,6 +4,7 @@ import { toReal } from '../../engine/simulate'
 import { withdrawalSummary } from '../../model/compute'
 import { inflationRate, totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
+import { HelpTip } from '../ui/HelpTip'
 
 /**
  * The projection headline. In accumulation plans the headline is the final
@@ -45,17 +46,26 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
     return (
       <section className={`hero${stale ? ' is-stale' : ''}`} ref={heroRef} aria-labelledby="hero-h">
         <div className="hero-meta">
-          <h2 id="hero-h" className="hero-label">
-            {t.results.atWithdrawalStart} <span className="hero-when">{yearAge(ws.startMonth)}</span>
-          </h2>
-          <span className="tag">{t.results.hypothetical}</span>
+          <div className="hero-title">
+            <h2 id="hero-h" className="hero-label">
+              {t.results.atWithdrawalStart} <span className="hero-when">{yearAge(ws.startMonth)}</span>
+            </h2>
+            <HelpTip topic="withdrawalStartValue" label={t.results.atWithdrawalStart} />
+          </div>
+          <span className="tag">
+            {t.results.hypothetical}
+            <HelpTip topic="assumptions" label={t.results.hypothetical} />
+          </span>
         </div>
         <p className="hero-value" aria-live="polite" aria-atomic="true">
           <span className="sr-only">{t.results.atWithdrawalStart}: </span>
           {money(ws.startValue)}
         </p>
         {s.inflationEnabled && (
-          <p className="hero-real">{fill(t.results.todayMoney, { value: money(toReal(ws.startValue, ws.startMonth, inflationRate(s))) })}</p>
+          <p className="hero-real">
+            {fill(t.results.todayMoney, { value: money(toReal(ws.startValue, ws.startMonth, inflationRate(s))) })}
+            <HelpTip topic="todayMoney" label={t.results.real} />
+          </p>
         )}
         <p className={`status-line ${dep != null ? 'is-neg' : 'is-pos'}`} role="status">
           <span className="status-dot" aria-hidden="true" />
@@ -65,26 +75,37 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
               : fill(t.results.runsOut, { year: depYear })
             : t.results.lastsAll}
           {dep == null && tot.final > 0 && <span className="status-sub">{fill(t.results.endLeft, { value: money(tot.final) })}</span>}
+          <HelpTip topic="depletion" />
         </p>
         <dl className="hero-stats">
           <div className="stat">
-            <dt>{t.results.withdrawn}</dt>
+            <dt>
+              {t.results.withdrawn}
+              <HelpTip topic="withdrawn" label={t.results.withdrawn} />
+            </dt>
             <dd>{money(tot.withdrawn)}</dd>
           </div>
           <div className="stat">
-            <dt>{t.results.endValue}</dt>
+            <dt>
+              {t.results.endValue}
+              <HelpTip topic="endValue" label={t.results.endValue} />
+            </dt>
             <dd className={dep != null ? 'is-neg' : undefined}>{money(tot.final)}</dd>
           </div>
           <div className="stat">
             <dt>
               <span className="dot dot--contrib" aria-hidden="true" />
               {t.results.contributed}
+              <HelpTip topic="contributed" label={t.results.contributed} />
             </dt>
             <dd>{money(tot.contributed)}</dd>
           </div>
           {showPeak && (
             <div className="stat">
-              <dt>{t.results.peak}</dt>
+              <dt>
+                {t.results.peak}
+                <HelpTip topic="peak" label={t.results.peak} />
+              </dt>
               <dd>
                 {money(ws.peak)} <span className="stat-sub">{yearAge(Math.max(0, ws.peakMonth - 1))}</span>
               </dd>
@@ -105,16 +126,27 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
   return (
     <section className={`hero${stale ? ' is-stale' : ''}`} ref={heroRef} aria-labelledby="hero-h">
       <div className="hero-meta">
-        <h2 id="hero-h" className="hero-label">
-          {t.results.projected} <span className="hero-when">{when}</span>
-        </h2>
-        <span className="tag">{t.results.hypothetical}</span>
+        <div className="hero-title">
+          <h2 id="hero-h" className="hero-label">
+            {t.results.projected} <span className="hero-when">{when}</span>
+          </h2>
+          <HelpTip topic="projected" label={t.results.projected} />
+        </div>
+        <span className="tag">
+          {t.results.hypothetical}
+          <HelpTip topic="assumptions" label={t.results.hypothetical} />
+        </span>
       </div>
       <p className="hero-value" aria-live="polite" aria-atomic="true">
         <span className="sr-only">{t.results.projected}: </span>
         {money(tot.final)}
       </p>
-      {s.inflationEnabled && <p className="hero-real">{fill(t.results.todayMoney, { value: money(tot.finalReal) })}</p>}
+      {s.inflationEnabled && (
+        <p className="hero-real">
+          {fill(t.results.todayMoney, { value: money(tot.finalReal) })}
+          <HelpTip topic="todayMoney" label={t.results.real} />
+        </p>
+      )}
 
       {showComposition && (
         <div
@@ -136,6 +168,7 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
           <dt>
             <span className="dot dot--contrib" aria-hidden="true" />
             {t.results.contributed}
+            <HelpTip topic="contributed" label={t.results.contributed} />
           </dt>
           <dd>{money(tot.contributed)}</dd>
         </div>
@@ -143,11 +176,15 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
           <dt>
             <span className="dot dot--value" aria-hidden="true" />
             {s.feesEnabled ? t.results.gainAfterFees : t.results.gain}
+            <HelpTip topic="gain" label={t.results.gain} />
           </dt>
           <dd className={gainPositive ? 'is-pos' : 'is-neg'}>{f.money(tot.netGain, s.currency, { signed: true })}</dd>
         </div>
         <div className="stat">
-          <dt>{t.results.gainShare}</dt>
+          <dt>
+            {t.results.gainShare}
+            <HelpTip topic="gainShare" label={t.results.gainShare} />
+          </dt>
           <dd>{tot.final > 0 ? f.pct(gainShare * 100, 0) : '—'}</dd>
         </div>
       </dl>

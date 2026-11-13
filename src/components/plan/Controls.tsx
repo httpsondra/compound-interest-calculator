@@ -4,6 +4,7 @@ import { CURRENCIES, FREQUENCIES, PER_YEAR_SCALE, scaledAmount, type Currency, t
 import { useApp } from '../../state/context'
 import { NumberField } from '../ui/NumberField'
 import { Segmented, Select } from '../ui/controls'
+import { HelpTip } from '../ui/HelpTip'
 import { Timeline } from './Timeline'
 import { AdvancedSections } from './AdvancedSections'
 
@@ -23,7 +24,7 @@ export function CurrencyPicker() {
       <Segmented<Currency>
         size="sm"
         label={t.inputs.currency}
-        help={t.inputs.currencyNote}
+        help="currency"
         className="currency-seg"
         value={s.currency}
         options={CURRENCIES.map((c) => ({
@@ -70,6 +71,7 @@ export function Controls() {
         <NumberField
           id="f-initial"
           size="lg"
+          help="initial"
           label={t.inputs.initial}
           value={s.initial}
           min={0}
@@ -82,8 +84,11 @@ export function Controls() {
 
         <div className="field-group">
           <div className="field-group-head">
-            <span className="nf-label" id="contrib-label">
-              {t.inputs.contribution}
+            <span className="field-head">
+              <span className="nf-label" id="contrib-label">
+                {t.inputs.contribution}
+              </span>
+              <HelpTip topic={s.contribMode === 'constant' ? 'contribution' : 'timeline'} label={t.inputs.contribution} />
             </span>
             <Segmented
               size="xs"
@@ -129,7 +134,7 @@ export function Controls() {
             <Segmented
               size="xs"
               label={t.inputs.growth}
-              help={t.inputs.growthHelp}
+              help="growth"
               value={s.growthMode}
               options={[
                 { value: 'none', label: t.inputs.growthNone },
@@ -160,6 +165,7 @@ export function Controls() {
           <NumberField
             id="f-years"
             size="lg"
+            help="horizon"
             label={t.inputs.horizon}
             ariaLabel={`${t.inputs.horizon} – ${t.inputs.years}`}
             value={s.horizonYears}
@@ -188,7 +194,7 @@ export function Controls() {
           id="f-return"
           size="lg"
           label={t.inputs.annualReturn}
-          help={t.inputs.returnHelp}
+          help="return"
           value={s.annualReturn}
           min={-99}
           max={100}

@@ -7,6 +7,7 @@ import { XYChart, type Series } from '../chart/XYChart'
 import { Icon } from '../ui/Icon'
 import { NumberField } from '../ui/NumberField'
 import { Segmented } from '../ui/controls'
+import { HelpTip } from '../ui/HelpTip'
 
 const SIM_OPTIONS = ['500', '1000', '2500', '5000'] as const
 
@@ -76,6 +77,13 @@ export default function RiskView() {
   }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const money = (v: number) => f.money(v, s.currency)
+  const extra = {
+    vol,
+    median: result?.finalPercentiles.p50,
+    p10: result?.finalPercentiles.p10,
+    p90: result?.finalPercentiles.p90,
+    goalProb: result?.goalProbability,
+  }
   const det = computed.result
   const arith = ((1 + s.annualReturn / 100) * Math.exp(Math.pow(vol / 100, 2) / 2) - 1) * 100
 
@@ -95,7 +103,10 @@ export default function RiskView() {
     <div className="risk">
       <header className="view-head">
         <div>
-          <h1 className="view-title">{t.risk.title}</h1>
+          <div className="title-row">
+            <h1 className="view-title">{t.risk.title}</h1>
+            <HelpTip topic="monteCarlo" label={t.risk.title} />
+          </div>
           <p className="view-sub">{t.risk.subtitle}</p>
         </div>
       </header>
@@ -110,7 +121,8 @@ export default function RiskView() {
             <NumberField
               id="f-vol"
               label={t.risk.volatility}
-              help={t.risk.volatilityHelp}
+              help="volatility"
+              helpExtra={{ vol }}
               value={vol}
               min={0}
               max={80}
@@ -120,8 +132,14 @@ export default function RiskView() {
               slider={{ min: 0, max: 40, step: 1 }}
               onChange={setVol}
             />
+            <div className="risk-return">
+              <span className="nf-label">{t.risk.expectedReturn}</span>
+              <span className="risk-return-val">{f.pct(s.annualReturn, 2)}</span>
+              <HelpTip topic="riskReturn" label={t.risk.expectedReturn} />
+            </div>
             <Segmented
               label={t.risk.simulations}
+              help="simulations"
               size="sm"
               value={sims}
               options={SIM_OPTIONS.map((v) => ({ value: v, label: f.num(Number(v)) }))}
@@ -148,24 +166,36 @@ export default function RiskView() {
               <>
                 <dl className="tiles tiles--risk">
                   <div className="tile tile--lead">
-                    <dt>{t.risk.median}</dt>
+                    <dt>
+                      {t.risk.median}
+                      <HelpTip topic="median" label={t.risk.median} extra={extra} />
+                    </dt>
                     <dd>{money(result.finalPercentiles.p50)}</dd>
                   </div>
                   <div className="tile">
-                    <dt>{t.risk.range}</dt>
+                    <dt>
+                      {t.risk.range}
+                      <HelpTip topic="percentiles" label={t.risk.percentiles} extra={extra} />
+                    </dt>
                     <dd className="tile-text">
                       {money(result.finalPercentiles.p10)} – {money(result.finalPercentiles.p90)}
                     </dd>
                   </div>
                   {result.goalProbability != null && goal && (
                     <div className="tile">
-                      <dt>{fill(t.risk.goalProb, { year: s.goal.year })}</dt>
+                      <dt>
+                        {fill(t.risk.goalProb, { year: s.goal.year })}
+                        <HelpTip topic="goalProbability" label={t.risk.goalProbLabel} extra={extra} />
+                      </dt>
                       <dd>{f.pct(result.goalProbability * 100, 0)}</dd>
                     </div>
                   )}
                   {result.depletionProbability != null && (
                     <div className="tile">
-                      <dt>{t.risk.depletionProb}</dt>
+                      <dt>
+                        {t.risk.depletionProb}
+                        <HelpTip topic="depletionProbability" label={t.risk.depletionProb} />
+                      </dt>
                       <dd className={result.depletionProbability > 0.1 ? 'is-neg' : undefined}>{f.pct(result.depletionProbability * 100, 0)}</dd>
                     </div>
                   )}
@@ -201,7 +231,10 @@ export default function RiskView() {
                   tooltipTitle={(m) => (m === 0 ? t.chart.start : fill(t.chart.year, { year: f.num(m / 12, m % 12 ? 1 : 0) }))}
                   keyStepMonths={12}
                 />
-                <h3 className="mini-title">{t.risk.percentiles}</h3>
+                <div className="title-row">
+                  <h3 className="mini-title">{t.risk.percentiles}</h3>
+                  <HelpTip topic="percentiles" label={t.risk.percentiles} extra={extra} />
+                </div>
                 <table className="ctable ctable--compact">
                   <tbody>
                     {(['p5', 'p10', 'p25', 'p50', 'p75', 'p90', 'p95'] as const).map((k) => (
