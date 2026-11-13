@@ -1,5 +1,5 @@
 import { simulate } from '../engine/simulate'
-import { analyzeGoal, extendPlan, firstCrossing, sustainableWithdrawal, type GoalAnalysis } from '../engine/solvers'
+import { analyzeGoal, extendPlan, firstCrossing, sustainableRate, sustainableWithdrawal, type GoalAnalysis } from '../engine/solvers'
 import type { PlanInput, SimResult, SimTotals } from '../engine/types'
 import {
   contributionVariable,
@@ -29,8 +29,12 @@ export interface Computed {
   /** Same scenario without fees (only when fees are enabled). */
   noFee: SimTotals | null
   goal: (GoalAnalysis & { month: number }) | null
-  /** Largest sustainable withdrawal (only when withdrawals are enabled). */
-  sustainable: number | null
+  /**
+   * Largest sustainable withdrawal (only when withdrawals are enabled):
+   * an amount per payment for fixed withdrawals, an annual rate (decimal) for
+   * initial-% and guardrails, null for current-% (it cannot deplete).
+   */
+  sustainable: { kind: 'amount' | 'rate'; value: number } | null
   sensitivity: { rate: number; final: number }[] | null
   /** Effect of a larger regular contribution. */
   moreDelta: { delta: number; final: number } | null
@@ -96,7 +100,16 @@ export function computeScenario(s: Scenario, opts: { full?: boolean } = { full: 
     return { ...EMPTY, issues, ok: true, plan, result, noFee, goal, milestones: [] }
   }
 
-  const sustainable = s.withdrawal.enabled && plan.withdrawal ? sustainableWithdrawal(plan) : null
+  let sustainable: Computed['sustainable'] = null
+  if (s.withdrawal.enabled && plan.withdrawal) {
+    if (s.withdrawal.strategy === 'fixed') {
+      const v = sustainableWithdrawal(plan)
+      sustainable = v != null ? { kind: 'amount', value: v } : null
+    } else if (s.withdrawal.strategy !== 'currentPct') {
+      const v = sustainableRate(plan)
+      sustainable = v != null ? { kind: 'rate', value: v } : null
+    }
+  }
 
   const sensitivity = [-2, 0, 2].map((d) => {
     const rate = s.annualReturn + d

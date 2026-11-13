@@ -184,6 +184,7 @@ export const en = {
     lasts: 'Portfolio lasts the whole plan',
     remaining: 'Remaining at the end',
     sustainable: 'Sustainable withdrawal',
+    sustainableRate: 'Sustainable withdrawal rate',
     sustainableHelp:
       'Largest withdrawal that never runs out before the plan ends, under the constant-return assumption. Not a guarantee — real returns vary.',
     marker: 'Withdrawals start',
@@ -225,6 +226,8 @@ export const en = {
     inYearAge: 'in year {year} · age {age}',
     endValue: 'Ending value',
     peak: 'Peak value',
+    incomeOk: 'Income stays at or above your desired {income} / month',
+    incomeLow: 'Income falls below your desired {income} / month in year {year} · lowest {lowest}',
     lastsAll: 'Money lasts the whole plan',
     runsOut: 'Runs out in year {year}',
     runsOutAge: 'Runs out in year {year} · age {age}',

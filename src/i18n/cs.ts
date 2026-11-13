@@ -186,6 +186,7 @@ export const cs: Dict = {
     lasts: 'Portfolio vydrží celý plán',
     remaining: 'Zůstatek na konci',
     sustainable: 'Udržitelný výběr',
+    sustainableRate: 'Udržitelná míra výběru',
     sustainableHelp:
       'Nejvyšší výběr, při kterém se portfolio nevyčerpá před koncem plánu, za předpokladu stálého výnosu. Není to záruka — skutečné výnosy kolísají.',
     marker: 'Začátek výběrů',
@@ -227,6 +228,8 @@ export const cs: Dict = {
     inYearAge: 'v roce {year} · věk {age}',
     endValue: 'Konečná hodnota',
     peak: 'Nejvyšší hodnota',
+    incomeOk: 'Příjem neklesne pod požadovaných {income} / měsíc',
+    incomeLow: 'Příjem klesne pod požadovaných {income} / měsíc v roce {year} · nejníže {lowest}',
     lastsAll: 'Peníze vydrží po celý plán',
     runsOut: 'Vyčerpáno v roce {year}',
     runsOutAge: 'Vyčerpáno v roce {year} · věk {age}',

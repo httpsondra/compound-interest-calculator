@@ -180,3 +180,38 @@ describe('persistence', () => {
     expect(legacy.withdrawal.amount).toBe(1000)
   })
 })
+
+describe('sustainable withdrawal per strategy', () => {
+  it('fixed → amount, initial % and guardrails → rate, current % → none', async () => {
+    const { computeScenario } = await import('../src/model/compute')
+    const fixed = computeScenario(retiree({ strategy: 'fixed', amount: 20_000 }))
+    expect(fixed.sustainable?.kind).toBe('amount')
+    const init = computeScenario(retiree({ strategy: 'initialPct' }))
+    expect(init.sustainable?.kind).toBe('rate')
+    expect(init.sustainable!.value).toBeGreaterThan(0.04) // 4 % at 5 % return over 30 years lasts
+    expect(init.sustainable!.value).toBeLessThan(1)
+    const guard = computeScenario(retiree({ strategy: 'guardrails' }))
+    expect(guard.sustainable?.kind).toBe('rate')
+    expect(computeScenario(retiree({ strategy: 'currentPct' })).sustainable).toBeNull()
+  })
+  it('the sustainable rate is the boundary: slightly above it depletes', async () => {
+    const { computeScenario } = await import('../src/model/compute')
+    const s = retiree({ strategy: 'initialPct' }, { annualReturn: 2 })
+    const r = computeScenario(s).sustainable!.value
+    expect(simulate(toPlan({ ...s, withdrawal: { ...s.withdrawal, rate: r * 100 } })).totals.depletedAtMonth).toBeNull()
+    expect(simulate(toPlan({ ...s, withdrawal: { ...s.withdrawal, rate: r * 100 * 1.01 } })).totals.depletedAtMonth).not.toBeNull()
+  })
+})
+
+describe('one income rule for deterministic and Monte Carlo', () => {
+  it('a withdrawal phase shorter than a year is evaluated pro-rata, not counted as success', () => {
+    const s = retiree({ strategy: 'fixed', amount: 20_000, startYear: 30, indexed: false }, { horizonYears: 29, horizonMonths: 6, retirement: { income: 25_000, real: false } })
+    const plan = toPlan(s)
+    const fi = fiAnalysis(s, simulate(plan))!
+    expect(fi.sustain.meets).toBe(false)
+    const mc = runMonteCarlo({ plan, volatility: 0, simulations: 3, seed: 1, income: { monthly: 25_000, real: false } })
+    expect(mc.incomeProbability).toBe(0)
+    const ok = runMonteCarlo({ plan, volatility: 0, simulations: 3, seed: 1, income: { monthly: 20_000, real: false } })
+    expect(ok.incomeProbability).toBe(1)
+  })
+})

@@ -1581,6 +1581,10 @@
   background: var(--c-neg-soft);
 }
 
+.status-line.is-warn {
+  background: var(--c-warn-soft);
+}
+
 .status-dot {
   width: 7px;
   height: 7px;

@@ -143,7 +143,8 @@ describe('scenario model', () => {
   it('lifecycle preset detects whether money lasts', () => {
     const c = computeScenario(buildPreset('lifecycle', 'CZK'))
     expect(c.result!.totals.withdrawn).toBeGreaterThan(0)
-    expect(c.sustainable).toBeGreaterThan(0)
+    expect(c.sustainable?.kind).toBe("amount")
+    expect(c.sustainable!.value).toBeGreaterThan(0)
   })
 })
 

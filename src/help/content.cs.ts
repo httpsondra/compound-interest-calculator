@@ -263,16 +263,130 @@ export const helpCs: HelpContent = {
     what: 'Pokud je zapnuto, pravidelné vklady skončí v roce, kdy začnou výběry.',
     how: 'Vypněte, pokud chcete současně investovat i vybírat.',
   }),
-  sustainable: (c) => ({
-    title: 'Udržitelný výběr',
-    what: 'Nejvyšší výběr, při kterém by simulované portfolio vydrželo až do konce plánu.',
-    how: 'Používá stejné předpoklady jako váš plán, včetně navyšování o inflaci, je-li zapnuté.',
-    example: c.computed.sustainable != null && Number.isFinite(c.computed.sustainable) ? `Pro váš plán: zhruba ${c.money(c.computed.sustainable)} za ${PER[c.s.withdrawal.frequency]}.` : undefined,
-    limit: 'Nejde o zaručeně bezpečnou částku. Skutečné výnosy kolísají a pár špatných let v nevhodnou dobu může výsledek změnit.',
-  }),
+  sustainable: (c) => {
+    const v = c.computed.sustainable
+    return {
+      title: 'Udržitelný výběr',
+      what: 'Nejvyšší výběr — u pevné částky částka, u pravidla 4 % a dynamických výběrů počáteční míra —, při kterém simulované portfolio vyplatí všechny plánované výběry až do konce plánu.',
+      how: 'Počítá se stejnou simulací a se stejnými předpoklady jako vaše výsledky, včetně navyšování o inflaci, je-li zapnuté. U „% z aktuální hodnoty“ se nezobrazuje — tento způsob portfolio z principu nevyčerpá.',
+      example: v ? (v.kind === 'rate' ? `Pro váš plán: počáteční míra zhruba ${c.pct(v.value * 100)}.` : Number.isFinite(v.value) ? `Pro váš plán: zhruba ${c.money(v.value)} za ${PER[c.s.withdrawal.frequency]}.` : undefined) : undefined,
+      limit: 'Nejde o zaručeně bezpečnou částku. Skutečné výnosy kolísají a pár špatných let v nevhodnou dobu může výsledek změnit.',
+    }
+  },
   shortfall: () => ({
     title: 'Nevyplacené výběry',
     what: 'Součet výběrů, které už nešlo vyplatit, protože portfolio bylo prázdné.',
+  }),
+
+  /* ───────── Důchod a finanční nezávislost ───────── */
+  withdrawalStrategy: () => ({
+    title: 'Strategie výběrů',
+    what: 'Pravidlo, které určuje, kolik si každý rok vyberete.',
+    how: 'Pevná částka: částku si zvolíte. Pravidlo 4 %: procento z počáteční hodnoty, pak se navyšuje o inflaci. % z aktuální hodnoty: každý rok se přepočítá podle portfolia. Dynamická: sleduje portfolio, ale meziroční změny jsou omezené.',
+    limit: 'Žádná strategie není nejlepší vždy: stabilní příjem obvykle znamená vyšší riziko vyčerpání, přizpůsobivý příjem nižší riziko, ale méně předvídatelný rozpočet.',
+  }),
+  rule4: (c) => ({
+    title: 'Procento z počáteční hodnoty („pravidlo 4 %“)',
+    what: 'Rozpočet prvního roku je procento z hodnoty portfolia na začátku výběrů. Poté se už jen navyšuje o inflaci — pozdější vývoj trhů ho nemění.',
+    example: `${c.money(baseAmount(c.s.currency, 6_000_000))} × 4 % = ${c.money(baseAmount(c.s.currency, 6_000_000) * 0.04)} ročně, tedy ${c.money((baseAmount(c.s.currency, 6_000_000) * 0.04) / 12)} měsíčně v prvním roce.`,
+    limit: '4 % je historické orientační pravidlo z amerického výzkumu, nikoli zaručeně bezpečná míra. Výsledek závisí na výnosech, inflaci, poplatcích a délce důchodu.',
+    more: 'Pravidlo vychází ze studií historických amerických trhů z 90. let. Protože výdaje na trhy nereagují, může krach na začátku důchodu portfolio vyčerpat — jak, ukáže zátěžový test.',
+  }),
+  currentPct: (c) => ({
+    title: '% z aktuální hodnoty portfolia',
+    what: 'Každý rok si vyberete zvolené procento z aktuální hodnoty portfolia.',
+    how: 'Když portfolio klesne, sníží se i váš příjem; když roste, příjem roste. Roční rozpočet se stanoví jednou při ročním přepočtu a rozdělí do výplat.',
+    example: `4 % z ${c.money(baseAmount(c.s.currency, 6_000_000))} je ${c.money(baseAmount(c.s.currency, 6_000_000) * 0.04)}; klesne-li portfolio na ${c.money(baseAmount(c.s.currency, 4_000_000))}, rozpočet dalšího roku bude ${c.money(baseAmount(c.s.currency, 4_000_000) * 0.04)} (${c.money((baseAmount(c.s.currency, 4_000_000) * 0.04) / 12)} měsíčně).`,
+    limit: 'Výběr 4 % aktuální hodnoty se každý rok přizpůsobuje vývoji investic. Může omezovat riziko vyčerpání prostředků, ale nezaručuje stabilní měsíční příjem — sledujte, zda pokryje požadovaný příjem, nejen zůstatek.',
+  }),
+  guardrails: () => ({
+    title: 'Dynamické výběry s limity',
+    what: 'Cílem je každý rok procento z aktuální hodnoty portfolia, ale výdaje se oproti loňsku smějí změnit jen o omezenou míru.',
+    how: 'Loňské výdaje se nejdřív navýší o inflaci; nový cíl se pak omezí třeba na +5 % nad a −2,5 % pod touto hodnotou. Volitelný minimální příjem se uplatní nakonec.',
+    limit: 'Jde o jednoduché pravidlo se stropem a podlahou, nikoli o složitější pravidla Guytona a Klingera. Je to hypotetické pravidlo, ne prokázaně bezpečná strategie.',
+    more: 'Omezení poklesu drží životní úroveň stabilnější ve špatných letech, omezení růstu ponechává rezervu po dobrých. Podobnou myšlenku používají například studie dynamických výdajů společnosti Vanguard.',
+  }),
+  withdrawalRate: (c) => ({
+    title: 'Míra výběru',
+    what: 'Roční výběr jako procento z hodnoty portfolia.',
+    example: `Při 4 % utáhne každý ${c.money(baseAmount(c.s.currency, 1_000_000))} v portfoliu ${c.money((baseAmount(c.s.currency, 1_000_000) * 0.04) / 12)} měsíčně.`,
+    limit: 'Předvolby 3–5 % jsou ilustrativní předpoklady, nikoli doporučení ani zaručeně bezpečné míry.',
+  }),
+  guardLimits: () => ({
+    title: 'Maximální růst a pokles',
+    what: 'O kolik se roční rozpočet smí zvýšit nebo snížit oproti loňským výdajům navýšeným o inflaci.',
+    example: 'Při loňských 240 000, inflaci 2 % a limitech +5 % / −2,5 % zůstane letošní rozpočet zhruba mezi 238 680 a 257 040, ať trhy udělají cokoli.',
+  }),
+  incomeFloor: () => ({
+    title: 'Minimální příjem',
+    what: 'Měsíční částka, pod kterou dynamické výběry nikdy neklesnou.',
+    how: 'Je v penězích 1. roku a o inflaci roste, jen když je zapnuté „Navyšovat o inflaci“. Má přednost před limitem poklesu — a při dlouhém poklesu trhů může portfolio vyčerpat.',
+  }),
+  desiredIncome: (c) => ({
+    title: 'Požadovaný měsíční příjem',
+    what: 'Příjem, který by vám investice měly v důchodu poskytovat.',
+    how: 'Slouží k výpočtu potřebného kapitálu a ke kontrole, zda zvolená strategie tento příjem skutečně vyplatí.',
+    example: c.s.retirement.real && c.s.inflationEnabled ? `${c.money(c.s.retirement.income)} v dnešních penězích, přepočtených na ceny v roce odchodu do důchodu.` : `${c.money(c.s.retirement.income)} měsíčně.`,
+  }),
+  retirementIncome: () => ({
+    title: 'Příjem v důchodu',
+    what: 'Peníze, které vaše výběry skutečně vyplatí, vyjádřené jako měsíční částka pro každý rok důchodu.',
+    how: 'Pokud portfolio plánovaný výběr nezvládne, počítá se jen to, co bylo opravdu vyplaceno.',
+  }),
+  realIncome: () => ({
+    title: 'Příjem v dnešních penězích',
+    what: 'Příjem v důchodu přepočtený na dnešní kupní sílu.',
+    how: 'Pevný výběr navyšovaný o inflaci tu zůstává rovný. Výběr, který se nenavyšuje, pomalu klesá.',
+  }),
+  lowestIncome: () => ({
+    title: 'Nejnižší měsíční příjem',
+    what: 'Nejmenší měsíční příjem v kterémkoli celém roce důchodu.',
+    how: 'U přizpůsobivých strategií je důležitější než průměr: z toho byste museli žít v nejhorším modelovaném roce.',
+  }),
+  incomeFunding: (c) => ({
+    title: 'Pokryje plán váš příjem?',
+    what: `Ověřuje, zda každý celý rok důchodu vyplatí alespoň požadovaných ${c.money(c.s.retirement.income)} měsíčně${c.s.retirement.real ? ' v dnešních penězích' : ''}.`,
+    how: 'Kladný zůstatek sám nestačí — strategie, která příjem sníží téměř na nulu, sice „přežije“, ale váš život neutáhne.',
+  }),
+  requiredCapital: (c) => ({
+    title: 'Potřebný kapitál',
+    what: 'Kolik by portfolio mělo mít na začátku výběrů, aby pokrylo požadovaný příjem.',
+    how: 'U procentních strategií: roční příjem ÷ míra výběru. U pevné částky se dopočítá simulací tak, aby výběry vydržely do konce plánu.',
+    example: `${c.money(baseAmount(c.s.currency, 50_000))} měsíčně = ${c.money(baseAmount(c.s.currency, 600_000))} ročně; při 4 % je potřeba ${c.money(baseAmount(c.s.currency, 600_000) / 0.04)}.`,
+    limit: 'Procentní vzorec je orientační plánovací pravidlo, ne důkaz udržitelnosti příjmu. Daně nejsou zahrnuty.',
+  }),
+  financialIndependence: () => ({
+    title: 'Finanční nezávislost',
+    what: 'První rok, kdy vaše portfolio dosáhne kapitálu potřebného pro požadovaný příjem, pokud budete dál investovat podle plánu.',
+    how: 'Je-li příjem zadán v dnešních penězích, potřebný kapitál roste s inflací.',
+    limit: 'Dosažení kapitálu ještě neznamená zaručený příjem — zda strategie obstojí, ukáže kontrola udržitelnosti a sekce Riziko.',
+  }),
+  retirementHorizon: () => ({
+    title: 'Délka důchodu',
+    what: 'Jak dlouho mají výběry trvat — od prvního roku do konce plánu nebo do zvoleného posledního roku.',
+    how: 'Delší důchod potřebuje pro stejnou míru jistoty nižší míru výběru.',
+  }),
+  sequenceRisk: () => ({
+    title: 'Riziko pořadí výnosů',
+    what: 'Stejný průměrný výnos může vést k velmi odlišným výsledkům podle toho, kdy přijdou špatné roky.',
+    how: 'Nejvíc škodí ztráty hned po začátku výběrů: prodáváte investice levně a tyto peníze už se nezotaví.',
+  }),
+  stressTest: () => ({
+    title: 'Zátěžový test',
+    what: 'Přehraje váš plán s hypotetickým tržním šokem na začátku důchodu a porovná ho s běžnou projekcí.',
+    how: 'Krach je jednorázový propad na začátku prvního roku výběrů — až po stanovení rozpočtu na ten rok a před první výplatou. Scénáře slabých let nahradí výnos v prvních letech důchodu.',
+    limit: 'Jde o hypotetické scénáře, nikoli předpovědi skutečné krize.',
+  }),
+  strategyCompare: () => ({
+    title: 'Srovnání strategií',
+    what: 'Čtyři strategie výběrů na stejném plánu: stejné spoření, výnosy, inflace, poplatky i délka důchodu.',
+    limit: 'Žádná strategie nevyhrává ve všem: porovnejte stabilitu příjmu s rizikem vyčerpání.',
+  }),
+  incomeProbability: (c) => ({
+    title: 'Šance, že pokryjete příjem',
+    what: `Podíl simulovaných průběhů, ve kterých každý celý rok důchodu vyplatil alespoň ${c.money(c.s.retirement.income)} měsíčně${c.s.retirement.real ? ' v dnešních penězích' : ''}.`,
+    how: 'Je to přísnější — a poctivější — měřítko než „portfolio se nevyčerpalo“.',
+    limit: 'Popisuje tento zjednodušený model, ne skutečné trhy.',
   }),
 
   /* ───────── Další nastavení ───────── */

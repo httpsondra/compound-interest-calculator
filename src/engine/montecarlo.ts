@@ -1,4 +1,5 @@
 import { simulate } from './simulate'
+import { evaluateIncome } from './income'
 import type { PlanInput } from './types'
 
 /*
@@ -114,7 +115,6 @@ export function runMonteCarlo(input: MonteCarloInput): MonteCarloResult {
   const hasIncome = !!plan.withdrawal
   const lowest = new Float64Array(hasIncome ? simulations : 0)
   const first = new Float64Array(hasIncome ? simulations : 0)
-  const deflate = (v: number, month: number, real: boolean) => (real ? v / Math.pow(1 + plan.inflation, month / 12) : v)
   const incReal = input.income?.real ?? true
   const goalMonth = goal ? Math.min(N, Math.max(0, Math.round(goal.month))) : 0
   const goalDeflator = goal && goal.real ? Math.pow(1 + plan.inflation, goalMonth / 12) : 1
@@ -128,19 +128,10 @@ export function runMonteCarlo(input: MonteCarloInput): MonteCarloResult {
     if (goal && b[goalMonth] / goalDeflator >= goal.target) goalHits++
     if (res.totals.depletedAtMonth !== null) depleted++
     if (hasIncome) {
-      let low = Infinity
-      let ok = true
-      const ys = res.withdrawalYears
-      for (const y of ys) {
-        if (y.months !== 12) continue
-        const m = deflate(y.paid / 12, y.startMonth, incReal)
-        if (m < low) low = m
-        if (input.income && m < input.income.monthly * (1 - 1e-9)) ok = false
-      }
-      if (low === Infinity) low = ys.length ? deflate(ys[0].paid / 12, ys[0].startMonth, incReal) : 0
-      lowest[s] = low
-      first[s] = ys.length ? deflate(ys[0].paid / 12, ys[0].startMonth, incReal) : 0
-      if (input.income && ok && ys.length) incomeHits++
+      const ev = evaluateIncome(res.withdrawalYears, plan.inflation, input.income?.monthly ?? 0, incReal)
+      lowest[s] = ev.lowest
+      first[s] = ev.first
+      if (input.income && ev.funded) incomeHits++
     }
   }
 

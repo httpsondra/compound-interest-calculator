@@ -2,6 +2,7 @@ import type { Ref } from 'react'
 import { useI18n } from '../../i18n'
 import { toReal } from '../../engine/simulate'
 import { withdrawalSummary } from '../../model/compute'
+import { incomeCheck } from '../../model/retirement'
 import { inflationRate, totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { HelpTip } from '../ui/HelpTip'
@@ -43,6 +44,10 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
     const dep = tot.depletedAtMonth
     const depYear = dep != null ? Math.ceil(dep / 12) : null
     const showPeak = ws.peak > ws.startValue * 1.005
+    // Percentage-of-portfolio policies rarely hit zero even when income collapses:
+    // judge them by the income they pay, not by whether the balance stays positive.
+    const incomeBased = s.withdrawal.strategy === 'currentPct' || s.withdrawal.strategy === 'guardrails'
+    const check = incomeBased ? incomeCheck(s, res) : null
     return (
       <section className={`hero${stale ? ' is-stale' : ''}`} ref={heroRef} aria-labelledby="hero-h">
         <div className="hero-meta">
@@ -67,16 +72,27 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
             <HelpTip topic="todayMoney" label={t.results.real} />
           </p>
         )}
-        <p className={`status-line ${dep != null ? 'is-neg' : 'is-pos'}`} role="status">
-          <span className="status-dot" aria-hidden="true" />
-          {depYear != null
-            ? s.startAge != null
-              ? fill(t.results.runsOutAge, { year: depYear, age: s.startAge + depYear - 1 })
-              : fill(t.results.runsOut, { year: depYear })
-            : t.results.lastsAll}
-          {dep == null && tot.final > 0 && <span className="status-sub">{fill(t.results.endLeft, { value: money(tot.final) })}</span>}
-          <HelpTip topic="depletion" />
-        </p>
+        {incomeBased && check ? (
+          <p className={`status-line ${check.funded ? 'is-pos' : 'is-warn'}`} role="status">
+            <span className="status-dot" aria-hidden="true" />
+            {check.funded
+              ? fill(t.results.incomeOk, { income: money(s.retirement.income) })
+              : fill(t.results.incomeLow, { income: money(s.retirement.income), year: check.firstShortYear ?? '', lowest: money(check.lowest) })}
+            <span className="status-sub">{s.retirement.real ? t.results.real : t.results.nominal}</span>
+            <HelpTip topic="incomeFunding" />
+          </p>
+        ) : (
+          <p className={`status-line ${dep != null ? 'is-neg' : 'is-pos'}`} role="status">
+            <span className="status-dot" aria-hidden="true" />
+            {depYear != null
+              ? s.startAge != null
+                ? fill(t.results.runsOutAge, { year: depYear, age: s.startAge + depYear - 1 })
+                : fill(t.results.runsOut, { year: depYear })
+              : t.results.lastsAll}
+            {dep == null && tot.final > 0 && <span className="status-sub">{fill(t.results.endLeft, { value: money(tot.final) })}</span>}
+            <HelpTip topic="depletion" />
+          </p>
+        )}
         <dl className="hero-stats">
           <div className="stat">
             <dt>

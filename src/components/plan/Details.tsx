@@ -216,18 +216,27 @@ export function WithdrawalCard() {
           <dt>{t.withdrawal.remaining}</dt>
           <dd>{money(res.totals.final)}</dd>
         </div>
-        <div className="tile">
-          <dt>
-            {t.withdrawal.sustainable}
-            <HelpTip topic="sustainable" label={t.withdrawal.sustainable} />
-          </dt>
-          <dd>
-            {computed.sustainable != null && Number.isFinite(computed.sustainable)
-              ? `${money(computed.sustainable)} ${t.per[s.withdrawal.frequency]}`
-              : '—'}
-            {s.withdrawal.indexed && s.inflationEnabled && <span className="tile-sub">{t.results.real}</span>}
-          </dd>
-        </div>
+        {computed.sustainable && (
+          <div className="tile">
+            <dt>
+              {computed.sustainable.kind === 'rate' ? t.withdrawal.sustainableRate : t.withdrawal.sustainable}
+              <HelpTip topic="sustainable" label={t.withdrawal.sustainable} />
+            </dt>
+            <dd>
+              {computed.sustainable.kind === 'rate'
+                ? f.pct(computed.sustainable.value * 100, 2)
+                : Number.isFinite(computed.sustainable.value)
+                  ? `${money(computed.sustainable.value)} ${t.per[s.withdrawal.frequency]}`
+                  : '—'}
+              {computed.sustainable.kind === 'amount' && s.withdrawal.indexed && s.inflationEnabled && <span className="tile-sub">{t.results.real}</span>}
+              {computed.sustainable.kind === 'rate' && res.withdrawalYears[0] && (
+                <span className="tile-sub">
+                  ≈ {money((computed.sustainable.value * res.withdrawalYears[0].reviewBalance) / 12)} {t.per.monthly}
+                </span>
+              )}
+            </dd>
+          </div>
+        )}
         {res.totals.shortfall > 0 && (
           <div className="tile">
             <dt>{t.withdrawal.shortfall}

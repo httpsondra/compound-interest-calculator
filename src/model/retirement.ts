@@ -1,6 +1,7 @@
 import { simulate, toReal } from '../engine/simulate'
 import { PER_YEAR, type PlanInput, type SimResult, type WithdrawalYear } from '../engine/types'
 import { analyzeGoal, extendPlan, solveMonotone, type GoalAnalysis } from '../engine/solvers'
+import { evaluateIncome } from '../engine/income'
 import {
   contributionVariable,
   inflationRate,
@@ -131,7 +132,7 @@ export interface FiAnalysis {
   /** FI month with a larger monthly contribution (insight). */
   fiMonthWithMore: { delta: number; month: number | null } | null
   /** Deterministic check of the selected strategy against the desired income. */
-  sustain: { meets: boolean; firstShortYear: number | null; yearsChecked: number }
+  sustain: { meets: boolean; firstShortYear: number | null; yearsChecked: number; lowest: number }
 }
 
 function accumulationPlan(s: Scenario): PlanInput {
@@ -217,17 +218,9 @@ export function fiAnalysis(s: Scenario, res: SimResult): FiAnalysis | null {
     fiMonthWithMore = { delta, month: m2 }
   }
 
-  // Does the selected strategy (deterministically) pay at least the desired income every full year?
-  const iy = incomeYears(res, infl).filter((y) => y.months === 12)
-  let firstShortYear: number | null = null
-  for (const y of iy) {
-    const need = s.retirement.income
-    const have = s.retirement.real ? y.monthlyReal : y.monthly
-    if (have < need * (1 - 1e-9)) {
-      firstShortYear = Math.floor(y.startMonth / 12) + 1
-      break
-    }
-  }
+  // Does the selected strategy (deterministically) pay at least the desired income? Same rule as Monte Carlo.
+  const ev = evaluateIncome(res.withdrawalYears, infl, s.retirement.income, s.retirement.real)
+  const firstShortYear = ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null
 
   return {
     strategy,
@@ -243,7 +236,7 @@ export function fiAnalysis(s: Scenario, res: SimResult): FiAnalysis | null {
     fiMonth,
     goal,
     fiMonthWithMore,
-    sustain: { meets: firstShortYear === null && iy.length > 0, firstShortYear, yearsChecked: iy.length },
+    sustain: { meets: ev.funded, firstShortYear, yearsChecked: ev.evaluatedYears, lowest: ev.lowest },
   }
 }
 
@@ -338,3 +331,10 @@ export function firstYearBudget(res: SimResult | null): { annual: number; monthl
 }
 
 export { withdrawalPolicy, solveMonotone }
+
+/** Cheap desired-income check for the headline (no solving). */
+export function incomeCheck(s: Scenario, res: SimResult) {
+  if (!s.withdrawal.enabled || !res.withdrawalYears.length) return null
+  const ev = evaluateIncome(res.withdrawalYears, inflationRate(s), s.retirement.income, s.retirement.real)
+  return { ...ev, firstShortYear: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null }
+}

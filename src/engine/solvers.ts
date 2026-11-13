@@ -167,3 +167,24 @@ export function sustainableWithdrawal(plan: PlanInput): number | null {
   }
   return lo
 }
+
+/**
+ * Largest withdrawal RATE (initial-% or guardrails policy) that pays every requested
+ * withdrawal until the end of the horizon. Bisection on the rate; null for other policies.
+ */
+export function sustainableRate(plan: PlanInput): number | null {
+  const w = plan.withdrawal
+  const pol = w?.policy
+  if (!w || !pol || (pol.kind !== 'initialPct' && pol.kind !== 'guardrails')) return null
+  const survives = (rate: number) =>
+    simulate({ ...plan, withdrawal: { ...w, policy: { ...pol, rate } } }, { lean: true }).totals.depletedAtMonth === null
+  if (survives(1)) return 1
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2
+    if (survives(mid)) lo = mid
+    else hi = mid
+  }
+  return lo
+}

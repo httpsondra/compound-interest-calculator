@@ -263,16 +263,130 @@ export const helpEn: HelpContent = {
     what: 'When on, regular contributions end in the year withdrawals begin.',
     how: 'Turn it off if you plan to keep investing while also taking money out.',
   }),
-  sustainable: (c) => ({
-    title: 'Sustainable withdrawal',
-    what: 'The largest withdrawal that would let the simulated portfolio last until the end of your plan.',
-    how: 'It uses the same assumptions as your plan, including inflation increases if enabled.',
-    example: c.computed.sustainable != null && Number.isFinite(c.computed.sustainable) ? `For your plan: about ${c.money(c.computed.sustainable)} per ${PER[c.s.withdrawal.frequency]}.` : undefined,
-    limit: 'It is not a guaranteed safe amount. Real returns vary, and a few bad years at the wrong time can change the outcome.',
-  }),
+  sustainable: (c) => {
+    const v = c.computed.sustainable
+    return {
+      title: 'Sustainable withdrawal',
+      what: 'The largest withdrawal — an amount for fixed withdrawals, a starting rate for the 4 % rule and dynamic spending — that lets the simulated portfolio pay every planned withdrawal until the end of your plan.',
+      how: 'It is solved with the same simulation as your results and the same assumptions, including inflation increases if enabled. It is not shown for “% of current portfolio”, which by design never runs out.',
+      example: v ? (v.kind === 'rate' ? `For your plan: a starting rate of about ${c.pct(v.value * 100)}.` : Number.isFinite(v.value) ? `For your plan: about ${c.money(v.value)} per ${PER[c.s.withdrawal.frequency]}.` : undefined) : undefined,
+      limit: 'It is not a guaranteed safe amount. Real returns vary, and a few bad years at the wrong time can change the outcome.',
+    }
+  },
   shortfall: () => ({
     title: 'Unpaid withdrawals',
     what: 'The total of withdrawals that could not be paid because the portfolio was already empty.',
+  }),
+
+  /* ───────── Retirement & financial independence ───────── */
+  withdrawalStrategy: () => ({
+    title: 'Withdrawal strategy',
+    what: 'The rule that decides how much you take out each year.',
+    how: 'Fixed amount: you choose the sum. 4 % rule: a percentage of the starting portfolio, then raised with inflation. % of current portfolio: recalculated from the portfolio every year. Dynamic: follows the portfolio, but within limits on yearly changes.',
+    limit: 'No strategy is universally best: stable income usually means more risk of running out; adaptive income means less risk but a less predictable budget.',
+  }),
+  rule4: (c) => ({
+    title: 'Initial-portfolio percentage (“4 % rule”)',
+    what: 'The first year’s budget is a percentage of the portfolio when withdrawals start. After that it only rises with inflation — later market moves do not change it.',
+    example: `${c.money(baseAmount(c.s.currency, 6_000_000))} × 4 % = ${c.money(baseAmount(c.s.currency, 6_000_000) * 0.04)} a year, i.e. ${c.money((baseAmount(c.s.currency, 6_000_000) * 0.04) / 12)} a month in year 1.`,
+    limit: '4 % is a historical rule of thumb from US research, not a guaranteed safe rate. Results depend on returns, inflation, fees and how long retirement lasts.',
+    more: 'The idea comes from studies of historical US markets in the 1990s. Because spending does not react to markets, a crash early in retirement can deplete the portfolio — use the stress test to see how.',
+  }),
+  currentPct: (c) => ({
+    title: '% of current portfolio',
+    what: 'Every year you take the chosen percentage of the portfolio’s value at that moment.',
+    how: 'When the portfolio falls, your income falls too; when it grows, income grows. The yearly budget is set once at the annual review and split into the payments.',
+    example: `4 % of ${c.money(baseAmount(c.s.currency, 6_000_000))} is ${c.money(baseAmount(c.s.currency, 6_000_000) * 0.04)}; if the portfolio drops to ${c.money(baseAmount(c.s.currency, 4_000_000))}, next year’s budget is ${c.money(baseAmount(c.s.currency, 4_000_000) * 0.04)} (${c.money((baseAmount(c.s.currency, 4_000_000) * 0.04) / 12)} a month).`,
+    limit: 'It practically never runs out of money, but it does not guarantee a stable income — check the desired-income result, not just the balance.',
+  }),
+  guardrails: () => ({
+    title: 'Dynamic spending with limits',
+    what: 'Each year the target is a percentage of the current portfolio, but spending may only change by a limited amount compared with last year.',
+    how: 'Last year’s spending is first adjusted for inflation; the new target is then capped at, say, +5 % above and −2.5 % below that. An optional minimum income is applied last.',
+    limit: 'This is a simple floor-and-ceiling rule, not the more complex Guyton-Klinger guardrails. It is a hypothetical rule, not a proven safe strategy.',
+    more: 'Limiting cuts keeps your lifestyle steadier in bad years; limiting increases keeps something in reserve after good ones. Research such as Vanguard’s dynamic spending studies uses a similar idea.',
+  }),
+  withdrawalRate: (c) => ({
+    title: 'Withdrawal rate',
+    what: 'The yearly withdrawal as a percentage of the portfolio.',
+    example: `At 4 %, every ${c.money(baseAmount(c.s.currency, 1_000_000))} of portfolio supports ${c.money(baseAmount(c.s.currency, 1_000_000) * 0.04 / 12)} a month.`,
+    limit: 'The presets (3–5 %) are illustrative assumptions, not recommendations or guaranteed safe rates.',
+  }),
+  guardLimits: () => ({
+    title: 'Maximum increase and decrease',
+    what: 'How much the yearly budget may rise or fall compared with last year’s inflation-adjusted spending.',
+    example: 'With last year’s 240 000, 2 % inflation and limits of +5 % / −2.5 %, this year’s budget stays between about 238 680 and 257 040, whatever the portfolio does.',
+  }),
+  incomeFloor: () => ({
+    title: 'Minimum income',
+    what: 'A monthly amount that dynamic spending never goes below.',
+    how: 'It is in year-1 money and rises with inflation only when “Increase with inflation” is on. It overrides the decrease limit — and can empty the portfolio if markets are bad for long.',
+  }),
+  desiredIncome: (c) => ({
+    title: 'Desired monthly income',
+    what: 'The income you would like your investments to provide in retirement.',
+    how: 'It is used to calculate the capital you need and to check whether your chosen strategy actually pays it.',
+    example: c.s.retirement.real && c.s.inflationEnabled ? `${c.money(c.s.retirement.income)} in today’s money, raised to future prices for the retirement year.` : `${c.money(c.s.retirement.income)} a month.`,
+  }),
+  retirementIncome: () => ({
+    title: 'Retirement income',
+    what: 'The money your withdrawals actually pay, shown as a monthly amount for each retirement year.',
+    how: 'If the portfolio cannot pay a planned withdrawal, only what was really paid counts.',
+  }),
+  realIncome: () => ({
+    title: 'Income in today’s money',
+    what: 'Retirement income converted to today’s purchasing power.',
+    how: 'A fixed withdrawal raised with inflation stays flat here. A withdrawal that is not raised slowly falls.',
+  }),
+  lowestIncome: () => ({
+    title: 'Lowest monthly income',
+    what: 'The smallest monthly income in any full retirement year.',
+    how: 'For adaptive strategies this matters more than the average: it is what you would have to live on in the worst modelled year.',
+  }),
+  incomeFunding: (c) => ({
+    title: 'Does the plan fund your income?',
+    what: `Checks whether every full retirement year pays at least your desired ${c.money(c.s.retirement.income)} a month${c.s.retirement.real ? ' in today’s money' : ''}.`,
+    how: 'A positive balance alone does not count — a strategy that cuts income to almost nothing can “survive” while not supporting your life.',
+  }),
+  requiredCapital: (c) => ({
+    title: 'Required capital',
+    what: 'How much the portfolio should be worth when withdrawals start to fund your desired income.',
+    how: 'For percentage strategies: yearly income ÷ withdrawal rate. For a fixed amount it is solved with the simulation so the withdrawals last until the end of the plan.',
+    example: `${c.money(baseAmount(c.s.currency, 50_000))} a month = ${c.money(baseAmount(c.s.currency, 600_000))} a year; at 4 % that needs ${c.money(baseAmount(c.s.currency, 600_000) / 0.04)}.`,
+    limit: 'The percentage formula is a planning rule of thumb, not proof that the income is sustainable. Taxes are not included.',
+  }),
+  financialIndependence: () => ({
+    title: 'Financial independence',
+    what: 'The first year in which your portfolio reaches the capital needed for your desired income, if you keep investing as planned.',
+    how: 'The capital need grows with inflation when the income is set in today’s money.',
+    limit: 'Reaching the capital is not the same as a guaranteed income — the sustainability check and the Risk view show whether the strategy holds up.',
+  }),
+  retirementHorizon: () => ({
+    title: 'Retirement horizon',
+    what: 'How long withdrawals are planned to last — from the start year until the end of the plan or the chosen last year.',
+    how: 'Longer retirements need a lower withdrawal rate for the same safety.',
+  }),
+  sequenceRisk: () => ({
+    title: 'Sequence-of-returns risk',
+    what: 'The same average return can lead to very different results depending on when the bad years come.',
+    how: 'Losses right after withdrawals start hurt most: you sell investments while they are cheap, and that money can no longer recover.',
+  }),
+  stressTest: () => ({
+    title: 'Market stress test',
+    what: 'Replays your plan with a hypothetical market shock at the start of retirement and compares it with the normal projection.',
+    how: 'A crash is a one-time drop at the start of the first withdrawal year, after that year’s budget is set and before the first payment. Weak-year scenarios replace the return for the first retirement years.',
+    limit: 'These are hypothetical scenarios, not predictions of a real crisis.',
+  }),
+  strategyCompare: () => ({
+    title: 'Strategy comparison',
+    what: 'The four withdrawal strategies applied to the same plan: same savings, returns, inflation, fees and retirement length.',
+    limit: 'No strategy wins on everything: compare stable income against the risk of running out.',
+  }),
+  incomeProbability: (c) => ({
+    title: 'Chance of funding your income',
+    what: `The share of simulated paths in which every full retirement year paid at least ${c.money(c.s.retirement.income)} a month${c.s.retirement.real ? ' in today’s money' : ''}.`,
+    how: 'This is stricter — and more honest — than “the portfolio did not run out”.',
+    limit: 'It describes this simplified model, not real markets.',
   }),
 
   /* ───────── Other settings ───────── */
