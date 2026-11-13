@@ -46,6 +46,9 @@ interface Props {
   footer?: ReactNode
   /** Index to snap keyboard navigation to (default 12 months). */
   keyStepMonths?: number
+  /** Controlled hover (synchronised charts sharing the same `xs`). */
+  hoverIndex?: number | null
+  onHover?: (index: number | null) => void
 }
 
 const PAD = { top: 16, right: 14, bottom: 30, left: 8 }
@@ -80,10 +83,18 @@ export function XYChart({
   extraRows,
   footer,
   keyStepMonths = 12,
+  hoverIndex,
+  onHover,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
-  const [hover, setHover] = useState<number | null>(null)
+  const [hoverState, setHoverState] = useState<number | null>(null)
+  const controlled = hoverIndex !== undefined
+  const hover = controlled ? hoverIndex : hoverState
+  const setHover = (i: number | null) => {
+    if (!controlled) setHoverState(i)
+    onHover?.(i)
+  }
   const [announce, setAnnounce] = useState('')
   const gid = useId().replace(/:/g, '')
 

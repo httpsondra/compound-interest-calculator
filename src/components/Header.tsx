@@ -1,7 +1,7 @@
 import { useI18n, type Lang } from '../i18n'
 import { Icon, LogoMark } from './ui/Icon'
 
-export type View = 'plan' | 'compare' | 'risk'
+export type View = 'plan' | 'retirement' | 'compare' | 'risk'
 export type Theme = 'system' | 'light' | 'dark'
 
 const NEXT_THEME: Record<Theme, Theme> = { system: 'light', light: 'dark', dark: 'system' }
@@ -24,7 +24,7 @@ export function Header({
   onShare: () => void
 }) {
   const { t } = useI18n()
-  const views: View[] = ['plan', 'compare', 'risk']
+  const views: View[] = ['plan', 'retirement', 'compare', 'risk']
   return (
     <header className="header">
       <div className="header-inner">
@@ -34,7 +34,7 @@ export function Header({
             Invest<span>Calc</span>
           </span>
         </a>
-        <nav className="nav" aria-label={t.app.navLabel} style={{ ['--i' as string]: views.indexOf(view) }}>
+        <nav className="nav" aria-label={t.app.navLabel} style={{ ['--i' as string]: views.indexOf(view), ['--n' as string]: views.length }}>
           <span className="nav-thumb" aria-hidden="true" />
           {views.map((v) => (
             <a

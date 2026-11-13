@@ -11,10 +11,11 @@ import { Toasts, type ToastMsg } from './components/ui/controls'
 
 const CompareView = lazy(() => import('./components/compare/CompareView'))
 const RiskView = lazy(() => import('./components/risk/RiskView'))
+const RetirementView = lazy(() => import('./components/retirement/RetirementView'))
 
 const viewFromHash = (): View => {
   const h = typeof location !== 'undefined' ? location.hash : ''
-  return h.startsWith('#/compare') ? 'compare' : h.startsWith('#/risk') ? 'risk' : 'plan'
+  return h.startsWith('#/compare') ? 'compare' : h.startsWith('#/risk') ? 'risk' : h.startsWith('#/retirement') ? 'retirement' : 'plan'
 }
 
 function readTheme(): Theme {
@@ -181,10 +182,16 @@ export default function App() {
           onShare={share}
         />
         <main id="main" className="page" tabIndex={-1}>
-          {view === 'plan' && <PlanView onReset={reset} />}
+          {view === 'plan' && <PlanView onReset={reset} onRetirement={() => navigate('retirement')} />}
           {view !== 'plan' && (
             <Suspense fallback={<div className="view-loading" aria-busy="true" />}>
-              {view === 'compare' ? <CompareView onOpen={() => navigate('plan')} /> : <RiskView />}
+              {view === 'compare' ? (
+                <CompareView onOpen={() => navigate('plan')} />
+              ) : view === 'retirement' ? (
+                <RetirementView onCompare={() => navigate('compare')} />
+              ) : (
+                <RiskView />
+              )}
             </Suspense>
           )}
         </main>

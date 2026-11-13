@@ -54,18 +54,18 @@ export function buildPreset(id: PresetId, currency: Currency, keep?: Partial<Sce
     case 'fi':
       return {
         ...base,
-        initial: s(500_000),
+        initial: s(1_000_000),
         startAge: 30,
         horizonYears: 60,
         horizonMonths: 0,
-        annualReturn: 6,
+        annualReturn: 7,
         contribMode: 'schedule',
         periods: [
-          { id: uid('p'), years: 10, amount: s(10_000), frequency: 'monthly', paused: false },
-          { id: uid('p'), years: 15, amount: s(20_000), frequency: 'monthly', paused: false },
+          { id: uid('p'), years: 10, amount: s(20_000), frequency: 'monthly', paused: false },
+          { id: uid('p'), years: 15, amount: s(35_000), frequency: 'monthly', paused: false },
           { id: uid('p'), years: 35, amount: 0, frequency: 'monthly', paused: true },
         ],
-        retirement: { income: s(50_000), real: true },
+        retirement: { income: s(45_000), real: true },
         withdrawal: {
           ...base.withdrawal,
           enabled: true,

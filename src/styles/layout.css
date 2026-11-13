@@ -96,7 +96,6 @@
 
 /* Centered pill navigation with a sliding indicator */
 .nav {
-  --n: 3;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useI18n } from '../../i18n'
 import { computeSummary } from '../../model/compute'
-import { scaledAmount, totalMonths, uid, type Scenario } from '../../model/scenario'
+import { WITHDRAWAL_STRATEGIES, inflationRate, scaledAmount, totalMonths, uid, type Scenario } from '../../model/scenario'
+import { incomeStats } from '../../model/retirement'
+import { evaluateIncome } from '../../engine/income'
 import { MAX_SCENARIOS } from '../../state/store'
 import { useApp } from '../../state/context'
 import { XYChart, type Series } from '../chart/XYChart'
@@ -67,6 +69,24 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
     add({ ...s, name: `${name(base, scenarios.indexOf(base))} · ${label}`.slice(0, 60) })
   }
 
+  // Same plan, only the withdrawal rule differs (identical assumptions).
+  const strategyVariants = () => {
+    const room = MAX_SCENARIOS - scenarios.length
+    if (room <= 0) {
+      toast(fill(t.compare.max, { max: MAX_SCENARIOS }))
+      return
+    }
+    const add = WITHDRAWAL_STRATEGIES.filter((st) => st !== active.withdrawal.strategy)
+      .slice(0, room)
+      .map((st) => ({
+        ...active,
+        id: uid('sc'),
+        name: `${name(active, scenarios.indexOf(active))} · ${t.retire.strategies[st]}`.slice(0, 60),
+        withdrawal: { ...active.withdrawal, strategy: st },
+      }))
+    store.setDoc((d) => ({ ...d, scenarios: [...d.scenarios, ...add] }))
+  }
+
   const remove = (s: Scenario, i: number) => {
     if (scenarios.length <= 1) return
     store.setDoc((d) => {
@@ -106,13 +126,54 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
       },
     ]
   })
-  const metrics: { key: string; label: string; get: (i: number) => number | null; money?: boolean; goal?: boolean; lowerIsBetter?: boolean }[] = [
+  const anyWithdrawal = scenarios.some((s) => s.withdrawal.enabled)
+  const stats = summaries.map((sum, i) => (sum && scenarios[i].withdrawal.enabled ? incomeStats(sum.result, inflationRate(scenarios[i])) : null))
+  const metrics: {
+    key: string
+    label: string
+    get: (i: number) => number | null
+    money?: boolean
+    goal?: boolean
+    lowerIsBetter?: boolean
+    text?: (i: number) => { value: string; tone?: 'pos' | 'neg' | 'warn' }
+  }[] = [
     { key: 'final', label: t.compare.final, get: (i) => summaries[i]?.result.totals.final ?? null, money: true },
     ...(anyInflation ? [{ key: 'real', label: t.compare.finalReal, get: (i: number) => summaries[i]?.result.totals.finalReal ?? null, money: true }] : []),
     { key: 'contrib', label: t.compare.contributed, get: (i) => summaries[i]?.result.totals.contributed ?? null, money: true },
     { key: 'gain', label: t.compare.gain, get: (i) => summaries[i]?.result.totals.netGain ?? null, money: true },
     ...(scenarios.some((s) => s.feesEnabled) ? [{ key: 'fees', label: t.compare.fees, get: (i: number) => summaries[i]?.result.totals.fees ?? null, money: true, lowerIsBetter: true }] : []),
     ...(scenarios.some((s) => s.goal.enabled) ? [{ key: 'goal', label: t.compare.goal, get: (i: number) => summaries[i]?.timeToGoal ?? null, goal: true }] : []),
+    ...(anyWithdrawal
+      ? [
+          { key: 'strategy', label: t.retire.strategy, get: () => null, text: (i: number) => ({ value: scenarios[i].withdrawal.enabled ? t.retire.strategies[scenarios[i].withdrawal.strategy] : '—' }) },
+          { key: 'inc0', label: `${t.retire.initialIncome} (${t.results.real})`, get: (i: number) => stats[i]?.initialReal ?? null, money: true },
+          { key: 'incMin', label: `${t.retire.lowestIncome} (${t.results.real})`, get: (i: number) => stats[i]?.minReal ?? null, money: true },
+          { key: 'incEnd', label: `${t.retire.finalIncome} (${t.results.real})`, get: (i: number) => stats[i]?.finalReal ?? null, money: true },
+          { key: 'wd', label: t.results.withdrawn, get: (i: number) => stats[i]?.totalWithdrawn ?? null, money: true },
+          {
+            key: 'dep',
+            label: t.retire.depletion,
+            get: () => null,
+            text: (i: number) => {
+              const st = stats[i]
+              if (!st) return { value: '—' }
+              return st.depletedAtMonth != null ? { value: String(Math.ceil(st.depletedAtMonth / 12)), tone: 'neg' as const } : { value: t.retire.never, tone: 'pos' as const }
+            },
+          },
+          {
+            key: 'funds',
+            label: t.retire.fundsIncome,
+            get: () => null,
+            text: (i: number) => {
+              const sum = summaries[i]
+              const sc = scenarios[i]
+              if (!sum || !sc.withdrawal.enabled) return { value: '—' }
+              const ev = evaluateIncome(sum.result.withdrawalYears, inflationRate(sc), sc.retirement.income, sc.retirement.real)
+              return ev.funded ? { value: t.retire.yes, tone: 'pos' as const } : { value: t.retire.no, tone: 'warn' as const }
+            },
+          },
+        ]
+      : []),
   ]
 
   const params = (s: Scenario) => {
@@ -154,7 +215,17 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
                   : t.compare.variants[id],
               disabled: full,
               onSelect: () => variant(id),
-            }))}
+            })).concat(
+              active.withdrawal.enabled
+                ? [
+                    {
+                      label: t.compare.variants.strategies,
+                      disabled: full,
+                      onSelect: () => strategyVariants(),
+                    },
+                  ]
+                : [],
+            )}
           />
           {scenarios.length > 1 && (
             <button type="button" className="btn btn--ghost btn--sm" onClick={resetCompare}>
@@ -294,6 +365,14 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
                   {scenarios.map((s, i) => {
                     const v = m.get(i)
                     const base = m.get(0)
+                    if (m.text) {
+                      const tx = m.text(i)
+                      return (
+                        <td key={s.id}>
+                          <span className={`ct-val${tx.tone ? ` is-${tx.tone}` : ''}`}>{tx.value}</span>
+                        </td>
+                      )
+                    }
                     if (m.goal) {
                       return <td key={s.id}>{s.goal.enabled && v != null ? fill(t.goal.timeTo, { year: Math.max(1, Math.ceil(v / 12)) }) : t.compare.goalNone}</td>
                     }

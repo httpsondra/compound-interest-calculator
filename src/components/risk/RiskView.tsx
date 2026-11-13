@@ -33,12 +33,21 @@ export default function RiskView() {
   }, [])
 
   const H = totalMonths(s)
+  const incomeTarget = s.retirement.income
+  const incomeReal = s.retirement.real && s.inflationEnabled
   const goal = s.goal.enabled && s.goal.year * 12 <= H ? { target: s.goal.target, month: s.goal.year * 12, real: s.goal.real } : null
 
   useEffect(() => {
     if (!plan) return
     const id = ++reqId.current
-    const input: MonteCarloInput = { plan, volatility: vol / 100, simulations: Number(sims), seed, goal }
+    const input: MonteCarloInput = {
+      plan,
+      volatility: vol / 100,
+      simulations: Number(sims),
+      seed,
+      goal,
+      income: plan.withdrawal ? { monthly: incomeTarget, real: incomeReal } : null,
+    }
     setRunning(true)
     const timer = window.setTimeout(() => {
       const w = workerRef.current
@@ -74,7 +83,7 @@ export default function RiskView() {
       }
     }, 220)
     return () => window.clearTimeout(timer)
-  }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real, incomeTarget, incomeReal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const money = (v: number) => f.money(v, s.currency)
   const extra = {
@@ -197,6 +206,30 @@ export default function RiskView() {
                         <HelpTip topic="depletionProbability" label={t.risk.depletionProb} />
                       </dt>
                       <dd className={result.depletionProbability > 0.1 ? 'is-neg' : undefined}>{f.pct(result.depletionProbability * 100, 0)}</dd>
+                    </div>
+                  )}
+                  {result.incomeProbability != null && (
+                    <div className="tile">
+                      <dt>
+                        {fill(t.risk.incomeProb, { income: money(incomeTarget) })}
+                        <HelpTip topic="incomeProbability" label={t.risk.incomeProbLabel} />
+                      </dt>
+                      <dd className={result.incomeProbability < 0.75 ? 'is-warn' : 'is-pos'}>{f.pct(result.incomeProbability * 100, 0)}</dd>
+                    </div>
+                  )}
+                  {result.lowestIncome && (
+                    <div className="tile">
+                      <dt>
+                        {t.risk.lowestIncome}
+                        <HelpTip topic="lowestIncome" label={t.risk.lowestIncome} />
+                      </dt>
+                      <dd className="tile-text">
+                        {money(result.lowestIncome.p50)} <span className="tile-unit">{t.per.monthly}</span>
+                        <span className="tile-sub">
+                          {fill(t.risk.lowestRange, { p10: money(result.lowestIncome.p10), p90: money(result.lowestIncome.p90) })} ·{' '}
+                          {incomeReal ? t.results.real : t.results.nominal}
+                        </span>
+                      </dd>
                     </div>
                   )}
                 </dl>

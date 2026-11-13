@@ -1,12 +1,13 @@
 import { useI18n } from '../../i18n'
-import type { Frequency } from '../../engine/types'
-import { WITHDRAWAL_FREQUENCIES, scaledAmount, uid } from '../../model/scenario'
+import { scaledAmount, uid } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { Icon } from '../ui/Icon'
 import { NumberField } from '../ui/NumberField'
-import { Disclosure, Segmented, Select, Switch } from '../ui/controls'
+import { Disclosure, Segmented, Switch } from '../ui/controls'
 import { useIssue } from './Controls'
 import { HelpTip } from '../ui/HelpTip'
+import { DesiredIncome, WithdrawalControls } from '../retirement/WithdrawalControls'
+import { firstYearBudget } from '../../model/retirement'
 
 export function AdvancedSections() {
   const { t, f, lang } = useI18n()
@@ -15,6 +16,7 @@ export function AdvancedSections() {
   const affix = f.currencyAffix(s.currency)
   const yrs = lang === 'cs' ? 'let' : 'yrs'
   const w = s.withdrawal
+  const firstYear = firstYearBudget(computed.result)
 
   return (
     <div className="disc-stack">
@@ -161,98 +163,16 @@ export function AdvancedSections() {
         title={t.withdrawal.title}
         icon={<Icon name="arrowDown" size={17} />}
         active={w.enabled}
-        summary={w.enabled ? `${f.money(w.amount, s.currency, { compact: true })} ${t.per[w.frequency]}` : t.withdrawal.summaryOff}
+        summary={
+          !w.enabled
+            ? t.withdrawal.summaryOff
+            : w.strategy === 'fixed'
+              ? `${f.money(w.amount, s.currency, { compact: true })} ${t.per[w.frequency]}`
+              : `${f.pct(w.rate, 2)}${firstYear ? ` · ≈ ${f.money(firstYear.monthly, s.currency, { compact: true })} ${t.per.monthly}` : ''}`
+        }
       >
-        <Switch
-          label={t.withdrawal.enable}
-          help="withdrawals"
-          checked={w.enabled}
-          onChange={(v) =>
-            update((x) => ({
-              ...x,
-              withdrawal: {
-                ...x.withdrawal,
-                enabled: v,
-                startYear: v && x.withdrawal.startYear > x.horizonYears ? Math.max(1, x.horizonYears - 9) : x.withdrawal.startYear,
-              },
-            }))
-          }
-        />
-        {w.enabled && (
-          <>
-            <div className="contrib-row">
-              <NumberField
-                id="f-w-amount"
-                help="withdrawalAmount"
-                label={t.withdrawal.amount}
-                value={w.amount}
-                min={0}
-                max={1e12}
-                step={scaledAmount(1000, s.currency)}
-                {...affix}
-                slider={{ min: 0, max: scaledAmount(200_000, s.currency), scale: 'pow' }}
-                onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, amount: v } }), 'w.amount')}
-              />
-              <Select<Frequency>
-                label={t.inputs.frequency}
-                className="freq-select"
-                value={w.frequency}
-                options={WITHDRAWAL_FREQUENCIES.map((v) => ({ value: v, label: t.freq[v] }))}
-                onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, frequency: v } }))}
-              />
-            </div>
-            <div className="pair-row">
-              <NumberField
-                id="f-w-start"
-                help="withdrawalStart"
-                label={t.withdrawal.start}
-                value={w.startYear}
-                min={1}
-                max={100}
-                step={1}
-                warning={issue('withdrawal.startYear', 'warning')}
-                onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, startYear: Math.round(v) } }), 'w.start')}
-              />
-              {w.endYear != null && (
-                <NumberField
-                  id="f-w-end"
-                  label={t.withdrawal.end}
-                  value={w.endYear}
-                  min={1}
-                  max={100}
-                  step={1}
-                  error={issue('withdrawal.endYear')}
-                  onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, endYear: Math.round(v) } }), 'w.end')}
-                />
-              )}
-            </div>
-            <Switch
-              label={t.withdrawal.untilEnd}
-              help="withdrawalEnd"
-              checked={w.endYear == null}
-              onChange={(v) =>
-                update((x) => ({
-                  ...x,
-                  withdrawal: { ...x.withdrawal, endYear: v ? null : Math.max(x.withdrawal.startYear, x.horizonYears) },
-                }))
-              }
-            />
-            {s.inflationEnabled && (
-              <Switch
-                label={t.withdrawal.indexed}
-                help="withdrawalIndexed"
-                checked={w.indexed}
-                onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, indexed: v } }))}
-              />
-            )}
-            <Switch
-              label={t.withdrawal.stop}
-              help="withdrawalStop"
-              checked={w.stopContributions}
-              onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, stopContributions: v } }))}
-            />
-          </>
-        )}
+        <WithdrawalControls />
+        {w.enabled && <DesiredIncome />}
       </Disclosure>
 
       <Disclosure

@@ -71,6 +71,11 @@ export function Timeline() {
           })}
           {covered < H && <span className="tl-gap" style={{ flexGrow: H - covered }} aria-hidden="true" />}
           {covered > H && <span className="tl-horizon" style={{ left: `${(H / span) * 100}%` }} aria-hidden="true" />}
+          {s.withdrawal.enabled && s.withdrawal.startYear - 1 < span && (
+            <span className="tl-retire" style={{ left: `${((s.withdrawal.startYear - 1) / span) * 100}%` }}>
+              <span>{t.retire.marker}</span>
+            </span>
+          )}
         </div>
         <div className="tl-axis" aria-hidden="true">
           {ticks.map((tk) => (

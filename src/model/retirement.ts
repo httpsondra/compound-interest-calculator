@@ -135,8 +135,23 @@ export interface FiAnalysis {
   sustain: { meets: boolean; firstShortYear: number | null; yearsChecked: number; lowest: number }
 }
 
+/**
+ * The plan without withdrawals, used to see when the savings reach the capital need.
+ * When "stop contributions when withdrawals start" is on, contributions end at the
+ * retirement start here too — the projection must not keep saving after retiring.
+ */
+function withoutWithdrawals(p: PlanInput, s: Scenario): PlanInput {
+  const startMonth = (s.withdrawal.startYear - 1) * 12
+  const cut = s.withdrawal.stopContributions
+  return {
+    ...p,
+    withdrawal: null,
+    streams: cut ? p.streams.map((st) => ({ ...st, endMonth: Math.min(st.endMonth, startMonth) })).filter((st) => st.endMonth > st.startMonth) : p.streams,
+  }
+}
+
 function accumulationPlan(s: Scenario): PlanInput {
-  return { ...toPlan(s), withdrawal: null }
+  return withoutWithdrawals(toPlan(s), s)
 }
 
 /** Smallest capital at retirement that keeps fixed (optionally indexed) withdrawals paid until the horizon. */
@@ -200,14 +215,14 @@ export function fiAnalysis(s: Scenario, res: SimResult): FiAnalysis | null {
     }
   }
 
-  const variable = (x: number) => ({ ...contributionVariable(s)(x), withdrawal: null })
+  const variable = (x: number) => withoutWithdrawals(contributionVariable(s)(x), s)
   const goal = analyzeGoal(acc, { target: capital, month: startMonth, real: false }, variable)
 
   let fiMonthWithMore: FiAnalysis['fiMonthWithMore']
   const delta = scaledAmount(2000, s.currency)
   {
     const current = s.contribMode === 'constant' ? s.constant.amount : 0
-    const more = simulate(extendPlan({ ...contributionVariable(s)(current + delta), withdrawal: null }), { lean: true })
+    const more = simulate(extendPlan(withoutWithdrawals(contributionVariable(s)(current + delta), s)), { lean: true })
     let m2: number | null = null
     for (let m = 0; m < more.balances.length; m++) {
       if (Number.isFinite(capital) && more.balances[m] >= capitalAt(m)) {
