@@ -2,6 +2,8 @@ import type { Frequency } from '../engine/types'
 import {
   CURRENCIES,
   FREQUENCIES,
+  WITHDRAWAL_STRATEGIES,
+  type WithdrawalStrategy,
   defaultScenario,
   uid,
   type Currency,
@@ -43,6 +45,7 @@ export function sanitizeScenario(input: unknown, fallbackCurrency: Currency = 'C
   const f = isObj(input.fees) ? input.fees : {}
   const w = isObj(input.withdrawal) ? input.withdrawal : {}
   const g = isObj(input.goal) ? input.goal : {}
+  const r = isObj(input.retirement) ? input.retirement : {}
   const periods = Array.isArray(input.periods)
     ? input.periods.slice(0, MAX_LIST).filter(isObj).map((p) => ({
         id: uid('p'),
@@ -96,6 +99,15 @@ export function sanitizeScenario(input: unknown, fallbackCurrency: Currency = 'C
       frequency: oneOf<Frequency>(w.frequency, ['monthly', 'quarterly', 'annual'], 'monthly'),
       indexed: bool(w.indexed, true),
       stopContributions: bool(w.stopContributions, true),
+      strategy: oneOf<WithdrawalStrategy>(w.strategy, WITHDRAWAL_STRATEGIES, 'fixed'),
+      rate: num(w.rate, 0, 20, 4),
+      maxIncrease: num(w.maxIncrease, 0, 100, 5),
+      maxDecrease: num(w.maxDecrease, 0, 100, 2.5),
+      floor: num(w.floor, 0, MONEY_MAX, 0),
+    },
+    retirement: {
+      income: num(r.income, 0, MONEY_MAX, d.retirement.income),
+      real: bool(r.real, true),
     },
     goal: {
       enabled: bool(g.enabled, false),

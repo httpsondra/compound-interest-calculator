@@ -1,4 +1,4 @@
-import type { ContributionStream, Frequency, PlanInput, Timing } from '../engine/types'
+import type { ContributionStream, Frequency, PlanInput, Timing, WithdrawalPolicy } from '../engine/types'
 import { MAX_HORIZON_MONTHS } from '../engine/simulate'
 
 export type Currency = 'CZK' | 'EUR' | 'USD'
@@ -31,6 +31,8 @@ export interface LumpSumInput {
 }
 
 export type GrowthMode = 'none' | 'custom' | 'inflation'
+export type WithdrawalStrategy = 'fixed' | 'initialPct' | 'currentPct' | 'guardrails'
+export const WITHDRAWAL_STRATEGIES: WithdrawalStrategy[] = ['fixed', 'initialPct', 'currentPct', 'guardrails']
 
 export interface Scenario {
   v: 2
@@ -66,6 +68,22 @@ export interface Scenario {
     frequency: Frequency
     indexed: boolean
     stopContributions: boolean
+    /** How the yearly withdrawal budget is set (see engine WithdrawalPolicy). */
+    strategy: WithdrawalStrategy
+    /** Withdrawal rate in percent for the percentage-based strategies. */
+    rate: number
+    /** Guardrails: maximum yearly increase / decrease of spending, in percent. */
+    maxIncrease: number
+    maxDecrease: number
+    /** Guardrails: optional minimum monthly income in plan-year-1 money (0 = none). */
+    floor: number
+  }
+  /** Financial-independence planning: the income the user wants from the portfolio. */
+  retirement: {
+    /** Desired monthly income. */
+    income: number
+    /** Income expressed in today's purchasing power (true) or nominal money at retirement (false). */
+    real: boolean
   }
   goal: { enabled: boolean; target: number; year: number; real: boolean }
 }
@@ -122,7 +140,13 @@ export function defaultScenario(currency: Currency = 'CZK', name = ''): Scenario
       frequency: 'monthly',
       indexed: true,
       stopContributions: true,
+      strategy: 'fixed',
+      rate: 4,
+      maxIncrease: 5,
+      maxDecrease: 2.5,
+      floor: 0,
     },
+    retirement: { income: s(40_000), real: true },
     goal: { enabled: false, target: s(5_000_000), year: 30, real: false },
   }
 }
@@ -193,8 +217,24 @@ export function toPlan(s: Scenario): PlanInput {
           stopContributions: w.stopContributions,
           indexRate: w.indexed ? infl : 0,
           timing: s.timing,
+          policy: withdrawalPolicy(s),
         }
       : null,
+  }
+}
+
+export function withdrawalPolicy(s: Scenario): WithdrawalPolicy {
+  const w = s.withdrawal
+  const rate = Math.max(0, w.rate) / 100
+  switch (w.strategy) {
+    case 'initialPct':
+      return { kind: 'initialPct', rate }
+    case 'currentPct':
+      return { kind: 'currentPct', rate }
+    case 'guardrails':
+      return { kind: 'guardrails', rate, maxIncrease: w.maxIncrease / 100, maxDecrease: w.maxDecrease / 100, floorAnnual: w.floor * 12 }
+    default:
+      return { kind: 'fixed' }
   }
 }
 
@@ -232,6 +272,8 @@ export type IssueCode =
   | 'lumpBeyond'
   | 'withdrawalBeyond'
   | 'withdrawalOrder'
+  | 'rateRange'
+  | 'guardRange'
   | 'goalBeyond'
   | 'ageRange'
   | 'growthRange'
@@ -273,6 +315,10 @@ export function validateScenario(s: Scenario): Issue[] {
       out.push({ code: 'withdrawalBeyond', severity: 'warning', field: 'withdrawal.startYear' })
     if (s.withdrawal.endYear != null && s.withdrawal.endYear < s.withdrawal.startYear)
       out.push({ code: 'withdrawalOrder', severity: 'error', field: 'withdrawal.endYear' })
+    if (s.withdrawal.strategy !== 'fixed' && !(s.withdrawal.rate >= 0 && s.withdrawal.rate <= 20))
+      out.push({ code: 'rateRange', severity: 'error', field: 'withdrawal.rate' })
+    if (s.withdrawal.strategy === 'guardrails' && !(s.withdrawal.maxDecrease >= 0 && s.withdrawal.maxDecrease <= 100 && s.withdrawal.maxIncrease >= 0))
+      out.push({ code: 'guardRange', severity: 'error', field: 'withdrawal.guard' })
   }
   if (s.goal.enabled && s.goal.year * 12 > MAX_HORIZON_MONTHS)
     out.push({ code: 'goalBeyond', severity: 'error', field: 'goal.year' })

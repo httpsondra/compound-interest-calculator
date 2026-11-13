@@ -30,6 +30,7 @@ export const cs: Dict = {
     longterm: 'Dlouhodobé měsíční investování',
     lump: 'Větší počáteční vklad',
     rising: 'Rostoucí vklady',
+    fi: 'Finanční nezávislost (pravidlo 4 %)',
     lifecycle: 'Spořit a pak čerpat',
   },
   scenario: {
@@ -380,6 +381,8 @@ export const cs: Dict = {
     lumpBeyond: 'Některé jednorázové vklady jsou za horizontem a nezapočítávají se.',
     withdrawalBeyond: 'Výběry začínají až po konci plánu, takže nemají vliv.',
     withdrawalOrder: 'Poslední rok výběrů nesmí být před prvním.',
+    rateRange: 'Míra výběru musí být mezi 0 % a 20 %.',
+    guardRange: 'Limity změn výdajů musí být mezi 0 % a 100 %.',
     goalBeyond: 'Rok cíle musí být do 100 let.',
     ageRange: 'Zadejte věk od 0 do 120.',
     growthRange: 'Roční navyšování musí být mezi −50 % a 50 %.',

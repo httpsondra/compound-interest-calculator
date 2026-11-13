@@ -28,6 +28,7 @@ export const en = {
     longterm: 'Long-term monthly investing',
     lump: 'Larger initial investment',
     rising: 'Increasing contributions',
+    fi: 'Financial independence (4 % rule)',
     lifecycle: 'Invest, then withdraw',
   },
   scenario: {
@@ -378,6 +379,8 @@ export const en = {
     lumpBeyond: 'Some one-time investments are after the horizon and are ignored.',
     withdrawalBeyond: 'Withdrawals start after the horizon, so they have no effect.',
     withdrawalOrder: 'The last withdrawal year must not be before the first.',
+    rateRange: 'Withdrawal rate must be between 0 % and 20 %.',
+    guardRange: 'Spending limits must be between 0 % and 100 %.',
     goalBeyond: 'The goal year must be within 100 years.',
     ageRange: 'Enter an age between 0 and 120.',
     growthRange: 'Annual increase must be between −50 % and 50 %.',

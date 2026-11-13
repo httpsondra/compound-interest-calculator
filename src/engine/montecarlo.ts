@@ -52,6 +52,12 @@ export interface MonteCarloInput {
   simulations: number
   seed: number
   goal?: { target: number; month: number; real: boolean } | null
+  /**
+   * Spending sustainability: a path "funds the income" only if the income actually paid in
+   * EVERY full withdrawal year is at least `monthly` (monthly equivalent; deflated to today's
+   * money at the start of each withdrawal year when `real`). A positive balance alone is not success.
+   */
+  income?: { monthly: number; real: boolean } | null
 }
 
 export interface MonteCarloResult {
@@ -63,6 +69,12 @@ export interface MonteCarloResult {
   finalPercentiles: Record<'p5' | 'p10' | 'p25' | 'p50' | 'p75' | 'p90' | 'p95', number>
   goalProbability: number | null
   depletionProbability: number | null
+  /** Share of paths whose income never fell below the desired level. */
+  incomeProbability: number | null
+  /** Distribution across paths of the lowest monthly income in any full withdrawal year. */
+  lowestIncome: Record<'p10' | 'p50' | 'p90', number> | null
+  /** Distribution across paths of the first-year monthly income. */
+  firstIncome: Record<'p10' | 'p50' | 'p90', number> | null
   simulations: number
 }
 
@@ -73,6 +85,11 @@ export function quantileSorted(sorted: ArrayLike<number>, q: number): number {
   const lo = Math.floor(pos)
   const hi = Math.ceil(pos)
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
+}
+
+function pct3(a: Float64Array) {
+  const s = Float64Array.from(a).sort()
+  return { p10: quantileSorted(s, 0.1), p50: quantileSorted(s, 0.5), p90: quantileSorted(s, 0.9) }
 }
 
 export function runMonteCarlo(input: MonteCarloInput): MonteCarloResult {
@@ -93,6 +110,12 @@ export function runMonteCarlo(input: MonteCarloInput): MonteCarloResult {
   const factors = new Float64Array(N)
   let goalHits = 0
   let depleted = 0
+  let incomeHits = 0
+  const hasIncome = !!plan.withdrawal
+  const lowest = new Float64Array(hasIncome ? simulations : 0)
+  const first = new Float64Array(hasIncome ? simulations : 0)
+  const deflate = (v: number, month: number, real: boolean) => (real ? v / Math.pow(1 + plan.inflation, month / 12) : v)
+  const incReal = input.income?.real ?? true
   const goalMonth = goal ? Math.min(N, Math.max(0, Math.round(goal.month))) : 0
   const goalDeflator = goal && goal.real ? Math.pow(1 + plan.inflation, goalMonth / 12) : 1
 
@@ -104,6 +127,21 @@ export function runMonteCarlo(input: MonteCarloInput): MonteCarloResult {
     finals[s] = b[N]
     if (goal && b[goalMonth] / goalDeflator >= goal.target) goalHits++
     if (res.totals.depletedAtMonth !== null) depleted++
+    if (hasIncome) {
+      let low = Infinity
+      let ok = true
+      const ys = res.withdrawalYears
+      for (const y of ys) {
+        if (y.months !== 12) continue
+        const m = deflate(y.paid / 12, y.startMonth, incReal)
+        if (m < low) low = m
+        if (input.income && m < input.income.monthly * (1 - 1e-9)) ok = false
+      }
+      if (low === Infinity) low = ys.length ? deflate(ys[0].paid / 12, ys[0].startMonth, incReal) : 0
+      lowest[s] = low
+      first[s] = ys.length ? deflate(ys[0].paid / 12, ys[0].startMonth, incReal) : 0
+      if (input.income && ok && ys.length) incomeHits++
+    }
   }
 
   const bands = { p10: [] as number[], p25: [] as number[], p50: [] as number[], p75: [] as number[], p90: [] as number[] }
@@ -131,6 +169,9 @@ export function runMonteCarlo(input: MonteCarloInput): MonteCarloResult {
     },
     goalProbability: goal ? goalHits / simulations : null,
     depletionProbability: plan.withdrawal ? depleted / simulations : null,
+    incomeProbability: hasIncome && input.income ? incomeHits / simulations : null,
+    lowestIncome: hasIncome ? pct3(lowest) : null,
+    firstIncome: hasIncome ? pct3(first) : null,
     simulations,
   }
 }

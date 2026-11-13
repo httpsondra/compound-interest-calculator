@@ -1,7 +1,7 @@
 import { defaultScenario, scaledAmount, uid, type Currency, type Scenario } from './scenario'
 
-export type PresetId = 'zero' | 'longterm' | 'lump' | 'rising' | 'lifecycle'
-export const PRESET_IDS: PresetId[] = ['zero', 'longterm', 'lump', 'rising', 'lifecycle']
+export type PresetId = 'zero' | 'longterm' | 'lump' | 'rising' | 'lifecycle' | 'fi'
+export const PRESET_IDS: PresetId[] = ['zero', 'longterm', 'lump', 'rising', 'lifecycle', 'fi']
 
 /** Editable illustrative examples. They are not recommendations. */
 export function buildPreset(id: PresetId, currency: Currency, keep?: Partial<Scenario>): Scenario {
@@ -41,10 +41,38 @@ export function buildPreset(id: PresetId, currency: Currency, keep?: Partial<Sce
         contribMode: 'constant',
         constant: { amount: s(8_000), frequency: 'monthly' },
         withdrawal: {
+          ...base.withdrawal,
           enabled: true,
           startYear: 31,
           endYear: null,
           amount: s(25_000),
+          frequency: 'monthly',
+          indexed: true,
+          stopContributions: true,
+        },
+      }
+    case 'fi':
+      return {
+        ...base,
+        initial: s(500_000),
+        startAge: 30,
+        horizonYears: 60,
+        horizonMonths: 0,
+        annualReturn: 6,
+        contribMode: 'schedule',
+        periods: [
+          { id: uid('p'), years: 10, amount: s(10_000), frequency: 'monthly', paused: false },
+          { id: uid('p'), years: 15, amount: s(20_000), frequency: 'monthly', paused: false },
+          { id: uid('p'), years: 35, amount: 0, frequency: 'monthly', paused: true },
+        ],
+        retirement: { income: s(50_000), real: true },
+        withdrawal: {
+          ...base.withdrawal,
+          enabled: true,
+          startYear: 26,
+          endYear: null,
+          strategy: 'initialPct',
+          rate: 4,
           frequency: 'monthly',
           indexed: true,
           stopContributions: true,
