@@ -54,7 +54,8 @@ export function createFormatter(lang: LangCode): Formatter {
         signDisplay: opts.signed ? 'exceptZero' : 'auto',
       }
       if (opts.compact) o.notation = 'compact'
-      if (currency === 'CZK' && lang === 'en') o.currencyDisplay = 'code'
+      // "100 000 $" in Czech (not "US$"), "CZK 100,000" in English.
+      o.currencyDisplay = currency === 'CZK' && lang === 'en' ? 'code' : 'narrowSymbol'
       return nf(locale, o).format(clean(value, opts.compact ? 2 : decimals))
     },
     num(value, decimals = 0) {
@@ -76,12 +77,12 @@ export function createFormatter(lang: LangCode): Formatter {
     },
     currencySymbol(currency) {
       if (currency === 'CZK' && lang === 'en') return 'CZK'
-      const parts = nf(locale, { style: 'currency', currency }).formatToParts(0)
+      const parts = nf(locale, { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }).formatToParts(0)
       return parts.find((p) => p.type === 'currency')?.value ?? currency
     },
     currencyAffix(currency) {
       const sym = this.currencySymbol(currency)
-      const parts = nf(locale, { style: 'currency', currency }).formatToParts(1)
+      const parts = nf(locale, { style: 'currency', currency, currencyDisplay: lang === 'en' && currency === 'CZK' ? 'code' : 'narrowSymbol' }).formatToParts(1)
       const ci = parts.findIndex((p) => p.type === 'currency')
       const ii = parts.findIndex((p) => p.type === 'integer')
       return ci < ii ? { prefix: sym } : { suffix: sym }

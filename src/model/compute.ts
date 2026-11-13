@@ -138,3 +138,31 @@ export function computeSummary(s: Scenario) {
   }
   return { plan, result, timeToGoal, months: totalMonths(s) }
 }
+
+export interface WithdrawalSummary {
+  startMonth: number
+  /** Balance at the start of the withdrawal phase (read from the simulation, before the first withdrawal). */
+  startValue: number
+  peak: number
+  peakMonth: number
+}
+
+/**
+ * Display helper for withdrawal plans. It only reads values that the single
+ * simulation already produced — the same numbers the chart plots — and adds
+ * no calculation of its own.
+ */
+export function withdrawalSummary(s: Scenario, res: SimResult): WithdrawalSummary | null {
+  if (!s.withdrawal.enabled) return null
+  const startMonth = (s.withdrawal.startYear - 1) * 12
+  if (startMonth >= res.balances.length - 1) return null
+  let peak = -Infinity
+  let peakMonth = 0
+  res.balances.forEach((b, m) => {
+    if (b > peak) {
+      peak = b
+      peakMonth = m
+    }
+  })
+  return { startMonth, startValue: res.balances[startMonth], peak, peakMonth }
+}

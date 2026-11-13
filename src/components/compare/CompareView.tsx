@@ -82,18 +82,29 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
 
   const maxH = Math.max(...summaries.map((x) => x?.months ?? 0), 12)
   const xs = Array.from({ length: maxH + 1 }, (_, m) => m)
-  const series: Series[] = scenarios.map((s, i) => {
+  const currency = active.currency
+  const mixedCurrency = scenarios.some((s) => s.currency !== currency)
+  // Without real FX conversion, only scenarios in the active scenario's currency share the chart.
+  const series: Series[] = scenarios.flatMap((s, i) => {
+    if (s.currency !== currency) return []
     const sum = summaries[i]
     const values = xs.map((m) => {
       if (!sum || m > sum.result.points.length - 1) return NaN
       const p = sum.result.points[m]
       return real && s.inflationEnabled ? p.real : p.balance
     })
-    return { id: s.id, label: name(s, i), color: COLORS[i % COLORS.length], kind: 'line', values, width: s.id === active.id ? 2.5 : 2 }
+    return [
+      {
+        id: s.id,
+        label: name(s, i),
+        color: COLORS[i % COLORS.length],
+        kind: 'line' as const,
+        values,
+        width: s.id === active.id ? 2.25 : 1.75,
+        format: (v: number) => f.money(v, s.currency),
+      },
+    ]
   })
-  const currency = active.currency
-  const mixedCurrency = scenarios.some((s) => s.currency !== currency)
-
   const metrics: { key: string; label: string; get: (i: number) => number | null; money?: boolean; goal?: boolean; lowerIsBetter?: boolean }[] = [
     { key: 'final', label: t.compare.final, get: (i) => summaries[i]?.result.totals.final ?? null, money: true },
     ...(anyInflation ? [{ key: 'real', label: t.compare.finalReal, get: (i: number) => summaries[i]?.result.totals.finalReal ?? null, money: true }] : []),
@@ -149,6 +160,17 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
         </div>
       </header>
       {full && <p className="note">{fill(t.compare.max, { max: MAX_SCENARIOS })}</p>}
+      {mixedCurrency && (
+        <p className="inline-warn" role="status">
+          <Icon name="warning" size={15} />
+          <span>
+            {fill(t.compare.mixedCurrency, {
+              currencies: Array.from(new Set(scenarios.map((s) => s.currency))).join(', '),
+              currency,
+            })}
+          </span>
+        </p>
+      )}
 
       <div className="compare-grid">
         {scenarios.map((s, i) => {

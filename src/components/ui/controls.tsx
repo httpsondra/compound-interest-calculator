@@ -18,14 +18,16 @@ export function Segmented<T extends string>({
   hideLabel,
   size = 'md',
   help,
+  className,
 }: {
   label: string
   value: T
   options: SegOption<T>[]
   onChange: (v: T) => void
   hideLabel?: boolean
-  size?: 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md'
   help?: string
+  className?: string
 }) {
   const id = useId()
   const refs = useRef<(HTMLButtonElement | null)[]>([])
@@ -42,7 +44,7 @@ export function Segmented<T extends string>({
     refs.current[next]?.focus()
   }
   return (
-    <div className={`seg-wrap seg-wrap--${size}`}>
+    <div className={`seg-wrap seg-wrap--${size}${className ? ` ${className}` : ''}`}>
       <div className={`field-head${hideLabel ? ' sr-only' : ''}`}>
         <span id={`${id}-l`} className="nf-label">
           {label}

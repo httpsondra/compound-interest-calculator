@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useI18n } from '../../i18n'
 import { totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
@@ -36,7 +36,7 @@ export function Insights() {
   }
   if (!items.length) return null
   return (
-    <section className="card insights" aria-labelledby="insights-h">
+    <section className="block insights" aria-labelledby="insights-h">
       <h2 id="insights-h" className="section-title">
         {t.insights.title}
       </h2>
@@ -97,7 +97,7 @@ export function GoalCard() {
           <dd className="tile-text">
             {ttgYear != null
               ? s.startAge != null
-                ? fill(t.goal.timeToAge, { year: ttgYear, age: s.startAge + ttgYear })
+                ? fill(t.goal.timeToAge, { year: ttgYear, age: s.startAge + ttgYear - 1 })
                 : fill(t.goal.timeTo, { year: ttgYear })
               : t.goal.never}
           </dd>
@@ -128,7 +128,7 @@ export function FeeCard() {
   const paid = res.totals.fees
   const foregone = diff - paid
   return (
-    <section className="card" aria-labelledby="fees-h">
+    <section className="block" aria-labelledby="fees-h">
       <header className="card-head">
         <h2 id="fees-h" className="section-title">
           {t.fees.cardTitle}
@@ -174,7 +174,7 @@ export function WithdrawalCard() {
   const dep = res.totals.depletedAtMonth
   const depYear = dep != null ? Math.ceil(dep / 12) : null
   return (
-    <section className={`card${dep != null ? ' is-alert' : ''}`} aria-labelledby="wd-h">
+    <section className={`block${dep != null ? ' is-alert' : ''}`} aria-labelledby="wd-h">
       <header className="card-head">
         <h2 id="wd-h" className="section-title">
           {t.withdrawal.cardTitle}
@@ -183,7 +183,7 @@ export function WithdrawalCard() {
       <p className={`goal-status${dep != null ? ' is-neg' : ''}`} role="status">
         {depYear != null
           ? s.startAge != null
-            ? fill(t.withdrawal.depletedAge, { year: depYear, age: s.startAge + depYear })
+            ? fill(t.withdrawal.depletedAge, { year: depYear, age: s.startAge + depYear - 1 })
             : fill(t.withdrawal.depleted, { year: depYear })
           : t.withdrawal.lasts}
       </p>
@@ -226,7 +226,7 @@ export function Sensitivity() {
   const max = Math.max(...sens.map((x) => (Number.isFinite(x.final) ? x.final : 0)), 1)
   const labels = [t.sensitivity.lower, t.sensitivity.base, t.sensitivity.higher]
   return (
-    <section className="card" aria-labelledby="sens-h">
+    <section className="block" aria-labelledby="sens-h">
       <header className="card-head">
         <h2 id="sens-h" className="section-title">
           {t.sensitivity.title}
@@ -308,7 +308,7 @@ export function YearTable() {
         ...(s.inflationEnabled ? [[t.inflation.rate, `${s.inflation} %`] as [string, string]] : []),
         ...(s.feesEnabled ? [[t.fees.annual, `${s.fees.annual} %`] as [string, string]] : []),
       ],
-      header: cols.map((c) => c.label),
+      header: cols.map((c) => (c.key === 'year' || c.key === 'age' ? c.label : `${c.label} (${s.currency})`)),
       rows: res.years.map((y) =>
         cols.map((c) => {
           switch (c.key) {
@@ -395,16 +395,52 @@ export function YearTable() {
 
 export function Conventions() {
   const { t } = useI18n()
+  const ref = useRef<HTMLDialogElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const items = (
+    <ol className="conv-list">
+      {t.conventions.items.map((it) => (
+        <li key={it}>{it}</li>
+      ))}
+    </ol>
+  )
   return (
-    <section className="card conventions" aria-labelledby="conv-h" id="conventions">
-      <h2 id="conv-h" className="section-title">
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        className="method-link"
+        aria-haspopup="dialog"
+        onClick={() => ref.current?.showModal()}
+      >
+        <Icon name="info" size={15} />
         {t.conventions.title}
-      </h2>
-      <ol>
-        {t.conventions.items.map((it) => (
-          <li key={it}>{it}</li>
-        ))}
-      </ol>
-    </section>
+      </button>
+      <dialog
+        ref={ref}
+        className="dialog"
+        aria-labelledby="conv-h"
+        onClose={() => trigger.current?.focus()}
+        onClick={(e) => {
+          if (e.target === ref.current) ref.current?.close()
+        }}
+      >
+        <div className="dialog-inner">
+          <header className="dialog-head">
+            <h2 id="conv-h" className="section-title">
+              {t.conventions.title}
+            </h2>
+            <button type="button" className="icon-btn" aria-label={t.common.close} onClick={() => ref.current?.close()}>
+              <Icon name="close" size={17} />
+            </button>
+          </header>
+          {items}
+        </div>
+      </dialog>
+      <section className="print-only" aria-hidden="true">
+        <h2>{t.conventions.title}</h2>
+        {items}
+      </section>
+    </>
   )
 }

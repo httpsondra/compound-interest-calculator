@@ -154,74 +154,76 @@ export function NumberField({
         </label>
         {help && <InfoTip label={textLabel}>{help}</InfoTip>}
       </div>
-      <div className="nf-box" onClick={() => inputRef.current?.focus()}>
-        {prefix && (
-          <span className="nf-affix" aria-hidden="true">
-            {prefix}
-          </span>
-        )}
-        <input
-          ref={inputRef}
-          id={inputId}
-          className="nf-input"
-          type="text"
-          inputMode={decimals > 0 || min < 0 ? 'decimal' : 'numeric'}
-          autoComplete="off"
-          spellCheck={false}
-          value={focused ? draft : display}
-          disabled={disabled}
-          aria-label={ariaLabel}
-          aria-invalid={shownError ? true : undefined}
-          aria-describedby={describedBy}
-          onFocus={(e) => {
-            setFocused(true)
-            setDraft(display)
-            const el = e.currentTarget
-            requestAnimationFrame(() => el.select())
-          }}
-          onBlur={handleBlur}
-          onChange={(e) => handleInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              nudge(1, e.shiftKey)
-            } else if (e.key === 'ArrowDown') {
-              e.preventDefault()
-              nudge(-1, e.shiftKey)
-            } else if (e.key === 'Enter') {
-              e.currentTarget.blur()
-            } else if (e.key === 'Escape') {
+      <div className={`nf-box${slider ? ' has-slider' : ''}`}>
+        <div className="nf-row" onClick={() => inputRef.current?.focus()}>
+          {prefix && (
+            <span className="nf-affix" aria-hidden="true">
+              {prefix}
+            </span>
+          )}
+          <input
+            ref={inputRef}
+            id={inputId}
+            className="nf-input"
+            type="text"
+            inputMode={decimals > 0 || min < 0 ? 'decimal' : 'numeric'}
+            autoComplete="off"
+            spellCheck={false}
+            value={focused ? draft : display}
+            disabled={disabled}
+            aria-label={ariaLabel}
+            aria-invalid={shownError ? true : undefined}
+            aria-describedby={describedBy}
+            onFocus={(e) => {
+              setFocused(true)
               setDraft(display)
+              const el = e.currentTarget
+              requestAnimationFrame(() => el.select())
+            }}
+            onBlur={handleBlur}
+            onChange={(e) => handleInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                nudge(1, e.shiftKey)
+              } else if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                nudge(-1, e.shiftKey)
+              } else if (e.key === 'Enter') {
+                e.currentTarget.blur()
+              } else if (e.key === 'Escape') {
+                setDraft(display)
+                setLocalError(null)
+                e.currentTarget.blur()
+              }
+            }}
+          />
+          {suffix && (
+            <span className="nf-affix nf-affix--suffix" aria-hidden="true">
+              {suffix}
+            </span>
+          )}
+        </div>
+        {slider && (
+          <input
+            type="range"
+            className="nf-slider"
+            min={0}
+            max={SLIDER_RES}
+            step={1}
+            disabled={disabled}
+            value={toPos(value, slider)}
+            aria-label={fill(t.inputs.sliderLabel, { label: textLabel })}
+            aria-valuetext={`${prefix ?? ''}${display}${suffix ? ` ${suffix}` : ''}`}
+            style={{ ['--fill' as string]: `${(toPos(value, slider) / SLIDER_RES) * 100}%` }}
+            onChange={(e) => {
+              const v = fromPos(Number(e.target.value), slider)
               setLocalError(null)
-              e.currentTarget.blur()
-            }
-          }}
-        />
-        {suffix && (
-          <span className="nf-affix nf-affix--suffix" aria-hidden="true">
-            {suffix}
-          </span>
+              commit(Math.min(max, Math.max(min, v)))
+            }}
+          />
         )}
       </div>
-      {slider && (
-        <input
-          type="range"
-          className="nf-slider"
-          min={0}
-          max={SLIDER_RES}
-          step={1}
-          disabled={disabled}
-          value={toPos(value, slider)}
-          aria-label={fill(t.inputs.sliderLabel, { label: textLabel })}
-          aria-valuetext={`${prefix ?? ''}${display}${suffix ? ` ${suffix}` : ''}`}
-          style={{ ['--fill' as string]: `${(toPos(value, slider) / SLIDER_RES) * 100}%` }}
-          onChange={(e) => {
-            const v = fromPos(Number(e.target.value), slider)
-            setLocalError(null)
-            commit(Math.min(max, Math.max(min, v)))
-          }}
-        />
-      )}
       {shownError && (
         <p id={errId} className="nf-msg nf-msg--error" role="alert">
           {shownError}

@@ -1,8 +1,8 @@
 import type { ContributionStream, Frequency, PlanInput, Timing } from '../engine/types'
 import { MAX_HORIZON_MONTHS } from '../engine/simulate'
 
-export type Currency = 'CZK' | 'EUR' | 'USD' | 'GBP'
-export const CURRENCIES: Currency[] = ['CZK', 'EUR', 'USD', 'GBP']
+export type Currency = 'CZK' | 'EUR' | 'USD'
+export const CURRENCIES: Currency[] = ['CZK', 'EUR', 'USD']
 export const FREQUENCIES: Frequency[] = ['weekly', 'monthly', 'quarterly', 'semiannual', 'annual']
 /** Slider range multiplier per frequency (relative to a monthly amount). */
 export const PER_YEAR_SCALE: Record<Frequency, number> = { weekly: 0.25, monthly: 1, quarterly: 3, semiannual: 6, annual: 12 }
@@ -75,7 +75,7 @@ export const uid = (prefix = 'id') =>
   `${prefix}-${Date.now().toString(36)}-${(idCounter++).toString(36)}${Math.random().toString(36).slice(2, 6)}`
 
 /** Rough unit scale so example amounts look sensible in each currency. */
-export const CURRENCY_SCALE: Record<Currency, number> = { CZK: 1, EUR: 1 / 25, USD: 1 / 25, GBP: 1 / 25 }
+export const CURRENCY_SCALE: Record<Currency, number> = { CZK: 1, EUR: 1 / 25, USD: 1 / 25 }
 
 export function roundNice(v: number): number {
   if (v <= 0) return 0

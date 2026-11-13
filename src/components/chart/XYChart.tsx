@@ -17,6 +17,8 @@ export interface Series {
   hidden?: boolean
   /** Exclude from tooltip. */
   quiet?: boolean
+  /** Per-series tooltip formatter (e.g. each scenario in its own currency). */
+  format?: (v: number) => string
   width?: number
 }
 
@@ -36,6 +38,8 @@ interface Props {
   tooltipTitle: (month: number) => string
   goal?: { value: number; label: string } | null
   markers?: Marker[]
+  /** Shaded phases, e.g. the withdrawal period. */
+  regions?: { start: number; end: number; label: string }[]
   height?: number
   ariaLabel: string
   extraRows?: (index: number) => { label: string; value: string; color?: string }[]
@@ -70,6 +74,7 @@ export function XYChart({
   tooltipTitle,
   goal,
   markers = [],
+  regions = [],
   height = 320,
   ariaLabel,
   extraRows,
@@ -169,7 +174,7 @@ export function XYChart({
   const tooltipRows = (i: number) => {
     const rows = visible
       .filter((s) => !s.quiet && Number.isFinite(s.values[i]))
-      .map((s) => ({ label: s.label, value: tooltipFormat(s.values[i]), color: s.color }))
+      .map((s) => ({ label: s.label, value: (s.format ?? tooltipFormat)(s.values[i]), color: s.color }))
     return [...rows, ...(extraRows ? extraRows(i) : [])]
   }
 
@@ -221,6 +226,20 @@ export function XYChart({
                 </linearGradient>
               ))}
           </defs>
+          {regions.map((r) => {
+            const x1 = sx(Math.max(0, r.start))
+            const x2 = sx(Math.min(maxMonth, r.end))
+            if (!(x2 > x1)) return null
+            return (
+              <g key={`${r.start}-${r.label}`} className="xy-region">
+                <rect x={x1} y={PAD.top} width={x2 - x1} height={plotH} />
+                <line x1={x1} x2={x1} y1={PAD.top} y2={PAD.top + plotH} />
+                <text x={x1 + 8} y={PAD.top + 14}>
+                  {r.label}
+                </text>
+              </g>
+            )
+          })}
           <g className="xy-grid">
             {yTicks.map((v) => (
               <g key={v}>

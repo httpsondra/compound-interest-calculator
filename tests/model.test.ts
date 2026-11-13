@@ -156,3 +156,51 @@ describe('CSV', () => {
     expect(en.split('\r\n').at(-1)).toBe('1,1234.50')
   })
 })
+
+describe('currency (CZK / EUR / USD)', () => {
+  const norm = (s: string) => s.replace(/[\u00a0\u202f]/g, ' ')
+  it.each([
+    ['cs', 'CZK', '100 000 Kč'],
+    ['cs', 'EUR', '100 000 €'],
+    ['cs', 'USD', '100 000 $'],
+    ['en', 'CZK', 'CZK 100,000'],
+    ['en', 'EUR', '€100,000'],
+    ['en', 'USD', '$100,000'],
+  ] as const)('%s %s → %s', (lang, cur, expected) => {
+    expect(norm(createFormatter(lang).money(100_000, cur))).toBe(expected)
+  })
+  it('input affixes follow the locale', () => {
+    expect(createFormatter('cs').currencyAffix('USD')).toEqual({ suffix: '$' })
+    expect(createFormatter('en').currencyAffix('USD')).toEqual({ prefix: '$' })
+    expect(createFormatter('en').currencyAffix('CZK')).toEqual({ prefix: 'CZK' })
+  })
+  it('changing currency keeps every amount and the result (no FX conversion)', () => {
+    const czk = { ...defaultScenario('CZK'), initial: 100_000 }
+    const usd = { ...czk, currency: 'USD' as const }
+    expect(usd.initial).toBe(100_000)
+    expect(simulate(toPlan(usd)).totals.final).toBe(simulate(toPlan(czk)).totals.final)
+  })
+  it('legacy GBP scenarios fall back deterministically and keep their amounts', () => {
+    const s = sanitizeScenario({ currency: 'GBP', initial: 12_345, constant: { amount: 678, frequency: 'monthly' } }, 'EUR')!
+    expect(s.currency).toBe('EUR')
+    expect(s.initial).toBe(12_345)
+    expect(s.constant.amount).toBe(678)
+  })
+  it('share links preserve the denomination', () => {
+    const s = { ...defaultScenario('USD'), initial: 5_000 }
+    expect(decodeShare(encodeShare(s))!.currency).toBe('USD')
+  })
+})
+
+describe('withdrawal summary reads the same numbers as the chart', () => {
+  it('start value and peak come straight from the simulated balances', async () => {
+    const { withdrawalSummary } = await import('../src/model/compute')
+    const s = buildPreset('lifecycle', 'CZK')
+    const res = simulate(toPlan(s))
+    const ws = withdrawalSummary(s, res)!
+    expect(ws.startMonth).toBe((s.withdrawal.startYear - 1) * 12)
+    expect(ws.startValue).toBe(res.points[ws.startMonth].balance)
+    expect(ws.peak).toBe(Math.max(...res.points.map((p) => p.balance)))
+    expect(withdrawalSummary({ ...s, withdrawal: { ...s.withdrawal, enabled: false } }, res)).toBeNull()
+  })
+})

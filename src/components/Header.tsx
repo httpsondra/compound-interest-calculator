@@ -34,7 +34,8 @@ export function Header({
             Invest<span>Calc</span>
           </span>
         </a>
-        <nav className="nav" aria-label={t.app.navLabel}>
+        <nav className="nav" aria-label={t.app.navLabel} style={{ ['--i' as string]: views.indexOf(view) }}>
+          <span className="nav-thumb" aria-hidden="true" />
           {views.map((v) => (
             <a
               key={v}

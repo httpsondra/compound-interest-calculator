@@ -32,6 +32,7 @@ test('full planning journey stays consistent across chart, cards, table, languag
 
   // Timeline with changing contributions
   await page.getByRole('radio', { name: 'Changes over time' }).click()
+  await page.getByRole('button', { name: /^Edit period 1:/ }).click()
   await typeInto(page, 'Period 1 – Until year', '5')
   await expect(page.getByText('Years 6–20')).toBeVisible()
   await page.getByRole('button', { name: 'Add period' }).click()
@@ -101,12 +102,12 @@ test('share link reproduces the calculation in a fresh browser', async ({ page, 
 
 test('undo restores a removed timeline period', async ({ page }) => {
   await page.getByRole('radio', { name: 'Changes over time' }).click()
-  await expect(page.locator('.period')).toHaveCount(3)
-  await page.getByRole('button', { name: 'Actions for period 2' }).click()
-  await page.getByRole('menuitem', { name: 'Remove' }).click()
-  await expect(page.locator('.period')).toHaveCount(2)
+  await expect(page.locator('.tl-item')).toHaveCount(3)
+  await page.getByRole('button', { name: /^Edit period 2:/ }).click()
+  await page.getByRole('group', { name: 'Actions for period 2' }).getByRole('button', { name: 'Remove' }).click()
+  await expect(page.locator('.tl-item')).toHaveCount(2)
   await page.getByRole('status').getByRole('button', { name: 'Undo' }).click()
-  await expect(page.locator('.period')).toHaveCount(3)
+  await expect(page.locator('.tl-item')).toHaveCount(3)
 })
 
 test('compare and risk views work', async ({ page }) => {
@@ -132,7 +133,7 @@ test('invalid input shows an accessible error instead of NaN', async ({ page }) 
 test('no horizontal overflow on narrow screens, all views, both themes', async ({ page }) => {
   for (const scheme of ['dark', 'light'] as const) {
     await page.emulateMedia({ colorScheme: scheme })
-    for (const width of [320, 390, 768]) {
+    for (const width of [320, 375, 390, 768]) {
       await page.setViewportSize({ width, height: 800 })
       for (const hash of ['', '#/compare', '#/risk']) {
         await page.goto(`/?lang=cs${hash}`)
@@ -169,4 +170,88 @@ test('opening a share link with a full scenario list is undoable', async ({ page
   await expect.poll(() =>
     page.locator('.scen-name').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value || (e as HTMLInputElement).placeholder)),
   ).toEqual(names)
+})
+
+test.describe('currency', () => {
+  test('switching currency keeps the entered amounts and reformats everything', async ({ page }) => {
+    await typeInto(page, 'Initial investment', '100000')
+    const before = (await heroValue(page)).replace(/\D/g, '')
+    await page.getByRole('radio', { name: /USD/ }).click()
+    await expect(page.getByText(/Now in USD\. Amounts were kept as entered/)).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Initial investment', exact: true })).toHaveValue('100,000')
+    await expect.poll(() => heroValue(page)).toMatch(/^\$[\d,]+$/)
+    expect((await heroValue(page)).replace(/\D/g, '')).toBe(before)
+    await page.getByRole('radio', { name: /CZK/ }).click()
+    await expect.poll(() => heroValue(page)).toMatch(/^CZK\s[\d,]+$/)
+    // Czech formatting, and language switch keeps the currency
+    await page.getByRole('button', { name: /Čeština/ }).click()
+    await expect.poll(() => heroValue(page)).toMatch(/^[\d\s\u00a0]+\sKč$/)
+    await page.getByRole('radio', { name: /EUR/ }).click()
+    await expect.poll(() => heroValue(page)).toMatch(/^[\d\s\u00a0]+\s€$/)
+    await page.reload()
+    // ?lang=en in the URL wins over the stored language; the currency must persist.
+    await expect.poll(() => heroValue(page)).toMatch(/^€[\d,]+$/)
+    await expect(page.locator('body')).not.toContainText('US$')
+  })
+
+  test('CSV export carries the selected currency', async ({ page }) => {
+    // Capture the generated file in the page (download handling differs per engine).
+    await page.addInitScript(() => {
+      const orig = URL.createObjectURL
+      URL.createObjectURL = (b: Blob | MediaSource) => {
+        if (b instanceof Blob) void b.text().then((t) => ((window as unknown as { __csv: string }).__csv = t))
+        return orig.call(URL, b)
+      }
+    })
+    await page.reload()
+    await page.getByRole('radio', { name: /USD/ }).click()
+    await page.getByRole('button', { name: 'Download CSV' }).click()
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __csv?: string }).__csv ?? '')).toContain('End value (USD)')
+    const csv = await page.evaluate(() => (window as unknown as { __csv: string }).__csv)
+    expect(csv).toMatch(/Currency,USD/)
+  })
+
+  test('comparison never mixes currencies', async ({ page }) => {
+    await page.getByRole('link', { name: 'Compare' }).click()
+    await page.getByRole('button', { name: 'Create a variant' }).click()
+    await page.getByRole('menuitem', { name: 'Return +1 pp' }).click()
+    await expect(page.locator('.ct-diff').first()).toBeVisible()
+    // Switch the active scenario to another currency
+    await page.getByRole('link', { name: 'Plan' }).click()
+    const usd = page.getByRole('radio', { name: /USD/ })
+    await usd.click()
+    await page.getByRole('link', { name: 'Compare' }).click()
+    await expect(page.getByText(/use different currencies/)).toBeVisible()
+    await expect(page.locator('.ct-diff')).toHaveCount(0)
+    await expect(page.locator('.scen-final').first()).toContainText('$')
+    await expect(page.locator('.scen-final').nth(1)).toContainText('€')
+  })
+
+  test('share links keep the denomination', async ({ page, browser }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: async (text: string) => void ((window as unknown as { __copied: string }).__copied = text) },
+        configurable: true,
+      })
+    })
+    await page.reload()
+    await page.getByRole('radio', { name: /USD/ }).click()
+    const value = await heroValue(page)
+    await page.getByRole('button', { name: 'Share' }).click()
+    const link = await page.evaluate(() => (window as unknown as { __copied: string }).__copied)
+    const fresh = await browser.newContext()
+    const p2 = await fresh.newPage()
+    await p2.goto(link)
+    await expect.poll(() => heroValue(p2)).toBe(value)
+    expect(value.startsWith('$')).toBe(true)
+    await fresh.close()
+  })
+})
+
+test('withdrawal plan headline shows value at withdrawal start, not a bare €0', async ({ page }) => {
+  await page.getByRole('button', { name: /Examples/ }).click()
+  await page.getByRole('menuitem', { name: 'Invest, then withdraw' }).click()
+  await expect(page.locator('.hero-label')).toContainText('Value when withdrawals begin')
+  await expect(page.locator('.status-line')).toBeVisible()
+  await expect(page.locator('.hero-stats')).toContainText('Ending value')
 })

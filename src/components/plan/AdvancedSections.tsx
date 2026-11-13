@@ -17,6 +17,7 @@ export function AdvancedSections() {
 
   return (
     <div className="disc-stack">
+      <h3 className="disc-label">{t.inputs.more}</h3>
       <Disclosure
         id="sec-goal"
         title={t.goal.title}

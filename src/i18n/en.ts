@@ -39,7 +39,9 @@ export const en = {
   inputs: {
     heading: 'Assumptions',
     currency: 'Currency',
-    currencyNote: 'Changes the currency label only — amounts are not converted.',
+    currencyNote: 'Sets the denomination of your plan. Amounts stay exactly as entered — nothing is converted at an exchange rate.',
+    currencyHint: 'Denomination only — amounts aren’t converted.',
+    currencyChanged: 'Now in {currency}. Amounts were kept as entered, not converted.',
     initial: 'Initial investment',
     contribution: 'Regular contribution',
     contribMode: 'Contribution pattern',
@@ -60,6 +62,7 @@ export const en = {
     growthHelp:
       'Raises every contribution at each plan anniversary. "With inflation" keeps contributions constant in today’s money; "None" keeps them fixed in nominal terms, so their real value erodes.',
     growthRate: 'Increase per year',
+    more: 'More options',
     sliderLabel: '{label} slider',
   },
   freq: {
@@ -97,6 +100,7 @@ export const en = {
     beyond: 'Beyond horizon',
     extendFix: 'Extend last period to year {year}',
     trimFix: 'Trim timeline to year {year}',
+    edit: 'Edit period {n}',
     actions: 'Actions for period {n}',
   },
   lumps: {
@@ -215,6 +219,15 @@ export const en = {
     valueMode: 'Value basis',
     srSummary: 'Projected value {value} after {years}. Contributed {contributed}. Investment gain {gain}.',
     sticky: 'Projected',
+    atWithdrawalStart: 'Value when withdrawals begin',
+    inYear: 'in year {year}',
+    inYearAge: 'in year {year} · age {age}',
+    endValue: 'Ending value',
+    peak: 'Peak value',
+    lastsAll: 'Money lasts the whole plan',
+    runsOut: 'Runs out in year {year}',
+    runsOutAge: 'Runs out in year {year} · age {age}',
+    endLeft: '{value} left at the end',
     hypothetical: 'Hypothetical projection',
   },
   chart: {
@@ -296,6 +309,7 @@ export const en = {
     reset: 'Reset comparison',
     single: 'Back to single scenario',
     actions: 'Actions for {name}',
+    mixedCurrency: 'These scenarios use different currencies ({currencies}). Amounts are never converted, so each value is shown in its own currency, differences are hidden and the chart shows only {currency} scenarios.',
     metricsTitle: 'Key figures',
     metric: 'Metric',
     final: 'Final value',

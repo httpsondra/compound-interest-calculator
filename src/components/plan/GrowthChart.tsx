@@ -31,11 +31,11 @@ export function GrowthChart() {
 
   const series: Series[] = real
     ? [
-        { id: 'real', label: t.chart.valueReal, color: 'var(--c-real)', kind: 'area', values: data.real, width: 2.25 },
+        { id: 'real', label: t.chart.valueReal, color: 'var(--c-real)', kind: 'area', values: data.real, width: 2 },
         { id: 'nominal', label: t.chart.value, color: 'var(--c-value)', kind: 'line', values: data.balance, dashed: true, width: 1.5 },
       ]
     : [
-        { id: 'value', label: t.chart.value, color: 'var(--c-value)', kind: 'area', values: data.balance, width: 2.25 },
+        { id: 'value', label: t.chart.value, color: 'var(--c-value)', kind: 'area', values: data.balance, width: 2 },
         {
           id: 'contrib',
           label: t.chart.contributed,
@@ -45,7 +45,7 @@ export function GrowthChart() {
           fillColor: 'var(--c-contrib-fill)',
           values: data.contributed,
           hidden: hideContrib,
-          width: 1.75,
+          width: 1.5,
         },
       ]
 
@@ -126,8 +126,13 @@ export function GrowthChart() {
         xs={data.xs}
         series={series}
         goal={goal}
-        markers={real ? [] : markers}
-        height={330}
+        markers={real ? [] : markers.filter((m) => !(hasWithdrawals && m.tone === 'warn'))}
+        regions={
+          s.withdrawal.enabled && (s.withdrawal.startYear - 1) * 12 < H
+            ? [{ start: (s.withdrawal.startYear - 1) * 12, end: s.withdrawal.endYear != null ? s.withdrawal.endYear * 12 : H, label: t.withdrawal.title }]
+            : []
+        }
+        height={340}
         ariaLabel={fill(t.chart.label, { years: duration(H), value: money(res.totals.final) })}
         yFormat={(v) => f.compact(v)}
         tooltipFormat={money}

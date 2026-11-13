@@ -41,7 +41,9 @@ export const cs: Dict = {
   inputs: {
     heading: 'Předpoklady',
     currency: 'Měna',
-    currencyNote: 'Mění jen označení měny — částky se nepřepočítávají.',
+    currencyNote: 'Určuje měnu, ve které plán počítáte. Částky zůstanou přesně tak, jak jste je zadali — nic se nepřepočítává kurzem.',
+    currencyHint: 'Jen měna výpočtu — částky se nepřepočítávají.',
+    currencyChanged: 'Nyní v {currency}. Částky zůstaly, jak jste je zadali — bez přepočtu kurzem.',
     initial: 'Počáteční vklad',
     contribution: 'Pravidelný vklad',
     contribMode: 'Průběh vkladů',
@@ -62,6 +64,7 @@ export const cs: Dict = {
     growthHelp:
       'Navýší všechny vklady vždy po roce plánu. „O inflaci“ udržuje vklady stálé v dnešních penězích; „Žádné“ je drží stálé nominálně, takže jejich reálná hodnota klesá.',
     growthRate: 'Navýšení za rok',
+    more: 'Další možnosti',
     sliderLabel: '{label} – posuvník',
   },
   freq: {
@@ -99,6 +102,7 @@ export const cs: Dict = {
     beyond: 'Za horizontem',
     extendFix: 'Prodloužit poslední období do roku {year}',
     trimFix: 'Zkrátit osu na rok {year}',
+    edit: 'Upravit období {n}',
     actions: 'Akce pro období {n}',
   },
   lumps: {
@@ -217,6 +221,15 @@ export const cs: Dict = {
     valueMode: 'Vyjádření hodnoty',
     srSummary: 'Odhadovaná hodnota {value} za {years}. Vloženo {contributed}. Výnos z investic {gain}.',
     sticky: 'Odhad',
+    atWithdrawalStart: 'Hodnota na začátku výběrů',
+    inYear: 'v roce {year}',
+    inYearAge: 'v roce {year} · věk {age}',
+    endValue: 'Konečná hodnota',
+    peak: 'Nejvyšší hodnota',
+    lastsAll: 'Peníze vydrží po celý plán',
+    runsOut: 'Vyčerpáno v roce {year}',
+    runsOutAge: 'Vyčerpáno v roce {year} · věk {age}',
+    endLeft: 'Na konci zbývá {value}',
     hypothetical: 'Hypotetická projekce',
   },
   chart: {
@@ -298,6 +311,7 @@ export const cs: Dict = {
     reset: 'Obnovit srovnání',
     single: 'Zpět na jeden scénář',
     actions: 'Akce pro {name}',
+    mixedCurrency: 'Scénáře používají různé měny ({currencies}). Částky se nepřepočítávají, proto je každá hodnota ve své měně, rozdíly se nezobrazují a graf ukazuje jen scénáře v {currency}.',
     metricsTitle: 'Klíčové ukazatele',
     metric: 'Ukazatel',
     final: 'Konečná hodnota',
