@@ -1,5 +1,7 @@
 import {
   FREQUENCY_MONTHS,
+  PER_YEAR,
+  type WithdrawalYear,
   type Frequency,
   type PeriodRow,
   type PlanInput,
@@ -46,6 +48,10 @@ interface CashEvent {
   /** 0 = deposit, 1 = withdrawal (processing order at equal times). */
   kind: 0 | 1
   amount: number
+  /** Withdrawal year index (withdrawals only). */
+  wYear?: number
+  /** Amount decided at run time by the withdrawal policy. */
+  dynamic?: boolean
 }
 
 /** Generate the event times of a recurring stream on [start, end) with the given timing. */
@@ -97,6 +103,12 @@ export interface SimulateOptions {
   monthFactors?: ArrayLike<number>
   /** Skip building per-month points and yearly rows (Monte Carlo speed path). */
   lean?: boolean
+  /**
+   * Instantaneous portfolio shocks (stress tests): at the start of `month`, after the annual
+   * withdrawal review and before that month's cashflows, the balance is multiplied by `factor`.
+   * Counted as (negative) market growth. Distinct from a low period return via `monthFactors`.
+   */
+  shocks?: { month: number; factor: number }[]
 }
 
 export function validatePlan(plan: PlanInput): string | null {
@@ -115,6 +127,12 @@ export function validatePlan(plan: PlanInput): string | null {
   }
   for (const l of plan.lumpSums) if (!(l.amount >= 0) || !(l.month >= 0)) return 'lumps'
   if (plan.withdrawal && !(plan.withdrawal.amount >= 0)) return 'withdrawal'
+  const pol = plan.withdrawal?.policy
+  if (pol && pol.kind !== 'fixed') {
+    if (!(pol.rate >= 0 && pol.rate <= 1)) return 'withdrawal'
+    if (pol.kind === 'guardrails' && !(pol.maxIncrease >= 0 && pol.maxDecrease >= 0 && pol.maxDecrease <= 1 && pol.floorAnnual >= 0))
+      return 'withdrawal'
+  }
   return null
 }
 
@@ -138,12 +156,16 @@ export function buildEvents(plan: PlanInput): CashEvent[][] {
     const month = Math.floor(l.month)
     byMonth[month].push({ month, tau: 0, kind: 0, amount: l.amount })
   }
-  if (w && w.amount > 0) {
+  const dynamic = !!w && !!w.policy && w.policy.kind !== 'fixed'
+  if (w && (w.amount > 0 || dynamic)) {
     for (const t of streamEventTimes(w.startMonth, w.endMonth, w.frequency, w.timing, N)) {
       const { month, tau } = locate(t, w.timing)
       if (month >= N) continue
-      const amount = w.amount * indexFactor(w.indexRate, month)
-      byMonth[month].push({ month, tau, kind: 1, amount })
+      // Withdrawal year: a payment exactly at the end of a year belongs to that year.
+      const rel = (t - w.startMonth) / 12
+      const wYear = w.timing === 'start' ? Math.floor(rel + EPS) : Math.max(0, Math.ceil(rel - EPS) - 1)
+      const amount = dynamic ? 0 : w.amount * indexFactor(w.indexRate, month)
+      byMonth[month].push({ month, tau, kind: 1, amount, wYear, dynamic })
     }
   }
   for (const list of byMonth) {
@@ -209,6 +231,63 @@ export function simulate(plan: PlanInput, options: SimulateOptions = {}): SimRes
     })
   }
 
+  // ── Withdrawal policy state ──
+  const w = plan.withdrawal
+  const policy = w?.policy ?? { kind: 'fixed' as const }
+  const perYear = w ? PER_YEAR[w.frequency] : 12
+  const wYears: WithdrawalYear[] = []
+  let budget = 0
+  const shockAt = new Map<number, number>()
+  for (const sh of options.shocks ?? []) shockAt.set(sh.month, (shockAt.get(sh.month) ?? 1) * sh.factor)
+
+  const review = (m: number) => {
+    if (!w) return
+    const k = Math.round((m - w.startMonth) / 12)
+    const prev = wYears[k - 1]
+    let target = budget
+    let limit: WithdrawalYear['limit'] = null
+    switch (policy.kind) {
+      case 'fixed':
+        target = budget = 0 // fixed amounts live on the events; `requested` is summed below
+        break
+      case 'initialPct':
+        budget = k === 0 ? policy.rate * B : budget * (1 + w.indexRate)
+        target = budget
+        break
+      case 'currentPct':
+        budget = target = policy.rate * B
+        break
+      case 'guardrails': {
+        target = policy.rate * B
+        if (k === 0 || !prev) budget = target
+        else {
+          const base = budget * (1 + w.indexRate)
+          const hi = base * (1 + policy.maxIncrease)
+          const lo = base * (1 - policy.maxDecrease)
+          budget = Math.min(hi, Math.max(lo, target))
+          if (target > hi + 1e-9) limit = 'increase'
+          else if (target < lo - 1e-9) limit = 'decrease'
+        }
+        const floor = policy.floorAnnual * indexFactor(w.indexRate, m)
+        if (floor > budget + 1e-9) {
+          budget = floor
+          limit = 'floor'
+        }
+        break
+      }
+    }
+    wYears[k] = {
+      index: k,
+      startMonth: m,
+      months: Math.min(12, N - m),
+      reviewBalance: B,
+      requested: 0,
+      paid: 0,
+      target,
+      limit,
+    }
+  }
+
   let monthGrowth = detGrowth
   const advance = (dTau: number) => {
     if (dTau <= 0 || B <= 0) return
@@ -224,8 +303,17 @@ export function simulate(plan: PlanInput, options: SimulateOptions = {}): SimRes
     yFees += fee
   }
 
+  const wEnd = w ? Math.min(w.endMonth, N) : 0
   for (let m = 0; m < N; m++) {
     monthGrowth = options.monthFactors ? options.monthFactors[m] : detGrowth
+    if (w && m >= w.startMonth && m < wEnd && (m - w.startMonth) % 12 === 0) review(m)
+    const shock = shockAt.get(m)
+    if (shock !== undefined && B > 0) {
+      const loss = B * (shock - 1)
+      B += loss
+      growth += loss
+      yGrowth += loss
+    }
     let pos = 0
     for (const ev of events[m]) {
       advance(ev.tau - pos)
@@ -233,12 +321,18 @@ export function simulate(plan: PlanInput, options: SimulateOptions = {}): SimRes
       if (ev.kind === 0) {
         deposit(ev.amount)
       } else {
-        const paid = Math.min(ev.amount, Math.max(B, 0))
-        const miss = ev.amount - paid
+        const wy = wYears[ev.wYear ?? 0]
+        const amount = ev.dynamic ? budget / perYear : ev.amount
+        const paid = Math.min(amount, Math.max(B, 0))
+        const miss = amount - paid
         B -= paid
         if (B < 1e-9) B = 0
         withdrawn += paid
         yWithdraw += paid
+        if (wy) {
+          wy.requested += amount
+          wy.paid += paid
+        }
         if (miss > 1e-6) {
           shortfall += miss
           if (depletedAtMonth === null) depletedAtMonth = m + 1
@@ -281,6 +375,7 @@ export function simulate(plan: PlanInput, options: SimulateOptions = {}): SimRes
   const final = B
   const finalReal = final / Math.pow(1 + plan.inflation, N / 12)
   return {
+    withdrawalYears: wYears.filter(Boolean),
     balances,
     points,
     years,

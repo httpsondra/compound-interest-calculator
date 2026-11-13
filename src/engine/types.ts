@@ -52,7 +52,32 @@ export interface FeeSettings {
   fixedPerDeposit: number
 }
 
+/**
+ * How each withdrawal year's spending budget is set.
+ *
+ * • fixed       — `amount` per payment, indexed once per plan year by `indexRate` (existing behaviour).
+ * • initialPct  — “4 % rule”: year-1 budget = rate × portfolio at the first review;
+ *                 later budgets = previous budget × (1 + indexRate). Ignores later portfolio values.
+ * • currentPct  — budget = rate × portfolio at each annual review.
+ * • guardrails  — target = rate × portfolio at the review, constrained to
+ *                 [prev × (1 + indexRate) × (1 − maxDecrease), prev × (1 + indexRate) × (1 + maxIncrease)],
+ *                 i.e. the limits apply to the previous budget AFTER its inflation adjustment.
+ *                 An optional floor (annual, plan-year-1 money, indexed like `fixed`) is applied last and
+ *                 wins over the ceiling. Year 1 budget = target.
+ *
+ * Reviews happen at the start of every withdrawal year (startMonth + 12k), before that month's
+ * cashflows and before any stress shock in that month. The annual budget is split evenly across
+ * the year's payments (budget ÷ payments per year).
+ */
+export type WithdrawalPolicy =
+  | { kind: 'fixed' }
+  | { kind: 'initialPct'; rate: number }
+  | { kind: 'currentPct'; rate: number }
+  | { kind: 'guardrails'; rate: number; maxIncrease: number; maxDecrease: number; floorAnnual: number }
+
 export interface WithdrawalPlan {
+  /** Defaults to { kind: 'fixed' }. */
+  policy?: WithdrawalPolicy
   startMonth: number
   /** Exclusive end. Infinity = until the plan ends. */
   endMonth: number
@@ -130,7 +155,26 @@ export interface SimTotals {
   shortfall: number
 }
 
+/** One withdrawal year (12 months starting at withdrawal start + 12k). */
+export interface WithdrawalYear {
+  index: number
+  startMonth: number
+  /** Months of this withdrawal year inside the horizon (12 except possibly the last). */
+  months: number
+  /** Portfolio value at the review (start of the withdrawal year, before its cashflows). */
+  reviewBalance: number
+  /** Spending the policy asked for in this year (nominal). */
+  requested: number
+  /** Withdrawals actually paid in this year (nominal). */
+  paid: number
+  /** Guardrails: rate × portfolio before limits; otherwise equal to `requested` budget. */
+  target: number
+  /** Guardrails: which limit changed the target, if any. */
+  limit: 'increase' | 'decrease' | 'floor' | null
+}
+
 export interface SimResult {
+  withdrawalYears: WithdrawalYear[]
   /** Balance at the end of each month, index 0 = right after the initial deposit. */
   balances: Float64Array
   points: SimPoint[]
