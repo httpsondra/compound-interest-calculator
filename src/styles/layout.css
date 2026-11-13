@@ -395,3 +395,14 @@
     padding: 7px 8px;
   }
 }
+
+@media (max-width: 380px) {
+  /* Logo mark only, so brand and tools share one row. */
+  .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+}

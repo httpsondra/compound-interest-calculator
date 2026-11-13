@@ -1694,13 +1694,6 @@
   stroke-linecap: round;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .xy-line,
-  .xy-area {
-    transition: d var(--t-slow) var(--ease-out);
-  }
-}
-
 .xy-region rect {
   fill: var(--c-withdraw-band);
 }
