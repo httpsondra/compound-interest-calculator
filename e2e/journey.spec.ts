@@ -135,7 +135,7 @@ test('no horizontal overflow on narrow screens, all views, both themes', async (
     await page.emulateMedia({ colorScheme: scheme })
     for (const width of [320, 375, 390, 768]) {
       await page.setViewportSize({ width, height: 800 })
-      for (const hash of ['', '#/compare', '#/risk']) {
+      for (const hash of ['', '#/retirement', '#/compare', '#/risk']) {
         await page.goto(`/?lang=cs${hash}`)
         await page.waitForLoadState('networkidle')
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)

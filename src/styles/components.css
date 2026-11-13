@@ -1848,6 +1848,9 @@
   fill: var(--c-warn);
   font-size: 10.5px;
   font-weight: 560;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 4px;
 }
 
 .xy-goal line {

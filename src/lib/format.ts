@@ -73,7 +73,10 @@ export function createFormatter(lang: LangCode): Formatter {
     },
     compact(value) {
       if (!Number.isFinite(value)) return '—'
-      return nf(locale, { notation: 'compact', maximumFractionDigits: Math.abs(value) >= 1e6 ? 1 : 0 }).format(value)
+      // Keep one decimal where rounding would merge neighbouring ticks (1.5K, 2.5M).
+      const abs = Math.abs(value)
+      const digits = abs >= 1e6 ? 1 : abs >= 1e4 ? 0 : 1
+      return nf(locale, { notation: 'compact', maximumFractionDigits: digits }).format(value)
     },
     currencySymbol(currency) {
       if (currency === 'CZK' && lang === 'en') return 'CZK'
