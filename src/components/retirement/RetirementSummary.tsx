@@ -15,10 +15,12 @@ export function RetirementSummary({ onOpen }: { onOpen: () => void }) {
   const infl = inflationRate(s)
   const stats = useMemo(() => (res && s.withdrawal.enabled ? incomeStats(res, infl) : null), [res, infl, s.withdrawal.enabled])
   if (!stats || !res) return null
-  const real = s.retirement.real && s.inflationEnabled
   const money = (v: number) => f.money(v, s.currency)
   const goal = incomeTarget(s)
-  const ev = evaluateIncome(res.withdrawalYears, infl, goal.monthly, goal.real)
+  // Show the income in the units the user thinks in: the goal's, else how the fixed amount was entered.
+  const real = (goal ? goal.real : s.withdrawal.strategy === 'fixed' && s.withdrawal.amountReal) && infl !== 0
+  const ev = goal ? evaluateIncome(res.withdrawalYears, infl, goal.monthly, goal.real) : null
+  const shortYear = stats.shortfall > 0.5 ? (res.withdrawalYears.find((y) => y.paid < y.requested - 0.5)?.index ?? 0) + s.withdrawal.startYear : null
   return (
     <section className="card ret-summary" aria-labelledby="ret-sum-h">
       <header className="card-head">
@@ -50,15 +52,27 @@ export function RetirementSummary({ onOpen }: { onOpen: () => void }) {
           </dt>
           <dd>{money(real ? stats.minReal : stats.min)}</dd>
         </div>
-        <div className="tile">
-          <dt>
-            {t.retire.sustainTitle}
-            <HelpTip topic="incomeFunding" label={t.retire.sustainTitle} />
-          </dt>
-          <dd className={`tile-text ${ev.funded ? 'is-pos' : 'is-warn'}`}>
-            {ev.funded ? t.retire.sustainYes : fill(t.retire.sustainNo, { year: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : '' })}
-          </dd>
-        </div>
+        {ev ? (
+          <div className="tile">
+            <dt>
+              {t.retire.sustainTitle}
+              <HelpTip topic="incomeFunding" label={t.retire.sustainTitle} />
+            </dt>
+            <dd className={`tile-text ${ev.funded ? 'is-pos' : 'is-warn'}`}>
+              {ev.funded ? t.retire.sustainYes : fill(t.retire.sustainNo, { year: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : '' })}
+            </dd>
+          </div>
+        ) : (
+          <div className="tile">
+            <dt>
+              {t.retire.incomeRequested}
+              <HelpTip topic="desiredVsActual" label={t.retire.incomeRequested} />
+            </dt>
+            <dd className={`tile-text ${shortYear != null ? 'is-warn' : 'is-pos'}`}>
+              {shortYear != null ? fill(t.wd.planShortFrom, { year: shortYear }) : t.wd.planAllPaid}
+            </dd>
+          </div>
+        )}
       </dl>
       <p className="note">
         {t.retire.strategies[s.withdrawal.strategy]} · {real ? t.results.real : t.results.nominal}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { simulate, toReal } from '../src/engine/simulate'
 import { defaultScenario, toPlan, type Scenario } from '../src/model/scenario'
-import { fiAnalysis, incomeCheck, incomeStats, plannedIncome } from '../src/model/retirement'
+import { compareStrategies, fiAnalysis, goalComparison, incomeCheck, incomeStats, plannedIncome } from '../src/model/retirement'
 import { runMonteCarlo } from '../src/engine/montecarlo'
 import { incomeTarget } from '../src/model/scenario'
 import { decodeShare, encodeShare, sanitizeScenario } from '../src/model/serialize'
@@ -11,9 +11,14 @@ import { createFormatter } from '../src/lib/format'
 import * as v4s from './fixtures/v4/model/scenario'
 import * as v4z from './fixtures/v4/model/serialize'
 import { simulate as v4simulate } from './fixtures/v4/engine/simulate'
+import * as v4r from './fixtures/v4/model/retirement'
+import { runMonteCarlo as v4MonteCarlo } from './fixtures/v4/engine/montecarlo'
 
-/** The plan from the V4.1 brief: 32 years of saving, then a fixed income from year 33. */
-function plan(o: { income?: number; real?: boolean; indexed?: boolean; inflation?: number; startYear?: number; initial?: number; frequency?: Scenario['withdrawal']['frequency'] } = {}): Scenario {
+/**
+ * The plan from the V4.1 brief: 32 years of saving, then a fixed withdrawal from year 33.
+ * income/real = the planned withdrawal and how it is entered; goal = the optional income goal.
+ */
+function plan(o: { income?: number; real?: boolean; indexed?: boolean; inflation?: number; startYear?: number; initial?: number; frequency?: Scenario['withdrawal']['frequency']; goal?: { income: number; real: boolean } } = {}): Scenario {
   const s = defaultScenario('CZK')
   return {
     ...s,
@@ -26,10 +31,12 @@ function plan(o: { income?: number; real?: boolean; indexed?: boolean; inflation
     constant: { amount: 20_000, frequency: 'monthly' },
     inflationEnabled: true,
     inflation: o.inflation ?? 2.5,
-    retirement: { income: o.income ?? 40_000, real: o.real ?? true },
+    retirement: o.goal ? { enabled: true, ...o.goal } : { ...s.retirement, enabled: false },
     withdrawal: {
       ...s.withdrawal,
       enabled: true,
+      amount: o.income ?? 40_000,
+      amountReal: o.real ?? true,
       strategy: 'fixed',
       startYear: o.startYear ?? 33,
       endYear: null,
@@ -111,7 +118,7 @@ describe('V4.1 case E — 4 % rule gets no pre-retirement inflation multiplier',
       horizonMonths: 0,
       inflationEnabled: true,
       inflation: 2.5,
-      retirement: { income: 40_000, real: true },
+      retirement: { enabled: true, income: 40_000, real: true },
       withdrawal: { ...s0.withdrawal, enabled: true, strategy: 'initialPct', rate: 4, startYear: 11, endYear: null, indexed: true },
     }
     const r = run(s)
@@ -122,8 +129,8 @@ describe('V4.1 case E — 4 % rule gets no pre-retirement inflation multiplier',
     expect(p.firstAnnual).toBeCloseTo(400_000, 6)
     // …and the in-retirement switch still raises later years.
     expect(r.withdrawalYears[1].requested).toBeCloseTo(410_000, 6)
-    // The "today's money" basis only changes the goal comparison, never the 4 % amount.
-    const nominal = run({ ...s, retirement: { income: 40_000, real: false } })
+    // Neither the goal basis nor the fixed-amount basis changes the 4 % amount.
+    const nominal = run({ ...s, retirement: { enabled: true, income: 40_000, real: false }, withdrawal: { ...s.withdrawal, amountReal: false } })
     expect(nominal.withdrawalYears.map((y) => y.requested)).toEqual(r.withdrawalYears.map((y) => y.requested))
   })
 })
@@ -210,37 +217,57 @@ describe('V4.1 edge cases', () => {
 })
 
 describe('V4.1 review fixes', () => {
-  it('every combination of a well-funded fixed plan funds its own income (deterministic, FI, Monte Carlo)', () => {
-    for (const real of [true, false]) for (const indexed of [true, false]) {
-      const s = plan({ real, indexed, initial: 1e9 })
+  it('without an income goal there are no goal metrics; the plan is judged by what it pays', () => {
+    const s = plan({ initial: 1e9 })
+    const r = run(s)
+    expect(incomeTarget(s)).toBeNull()
+    expect(incomeCheck(s, r)).toBeNull()
+    expect(fiAnalysis(s, r)).toBeNull()
+    expect(r.totals.shortfall).toBe(0)
+  })
+  it('the goal is checked in its own units, independent of how the withdrawal was entered', () => {
+    const cases: Array<[boolean, boolean, { income: number; real: boolean }, boolean]> = [
+      // withdrawal basis, raised in retirement, goal, funded?
+      [true, true, { income: 40_000, real: true }, true], // keeps purchasing power → meets a real goal
+      [true, false, { income: 40_000, real: true }, false], // constant nominal → falls below a real goal from year 34
+      [true, false, { income: 88_150, real: false }, true], // …but meets the same nominal amount
+      [false, true, { income: 40_000, real: false }, true],
+      [false, false, { income: 40_000, real: false }, true],
+      [false, false, { income: 40_000, real: true }, false], // 40 000 nominal in year 33 ≈ 18 150 today
+    ]
+    for (const [real, indexed, goal, funded] of cases) {
+      const s = plan({ real, indexed, initial: 1e9, goal })
       const r = run(s)
-      expect(r.totals.depletedAtMonth).toBeNull()
-      expect(incomeCheck(s, r)!.funded).toBe(true)
-      expect(fiAnalysis(s, r)!.sustain.meets).toBe(true)
-      const t = incomeTarget(s)
-      const mc = runMonteCarlo({ plan: toPlan(s), volatility: 0, simulations: 3, seed: 1, income: t })
-      expect(mc.incomeProbability).toBe(1)
+      expect(incomeCheck(s, r)!.funded).toBe(funded)
+      expect(fiAnalysis(s, r)!.sustain.meets).toBe(funded)
+      const mc = runMonteCarlo({ plan: toPlan(s), volatility: 0, simulations: 3, seed: 1, income: incomeTarget(s) })
+      expect(mc.incomeProbability).toBe(funded ? 1 : 0)
     }
   })
-  it('today’s money + not raised: the target is the constant nominal amount from the start year', () => {
-    const t = incomeTarget(plan({ real: true, indexed: false }))
-    expect(t.real).toBe(false)
-    expect(t.monthly).toBeCloseTo(40_000 * Math.pow(1.025, 32), 6)
-    // …and an underfunded plan is still reported as short.
-    const poor = plan({ real: true, indexed: false, initial: 0 })
-    poor.constant = { amount: 0, frequency: 'monthly' }
-    expect(incomeCheck(poor, run(poor))!.funded).toBe(false)
+  it('goal comparison uses matching units: first withdrawal year, monthly, real vs real or nominal vs nominal', () => {
+    const real = goalComparison(plan({ goal: { income: 45_000, real: true } }), run(plan()))!
+    expect(real.real).toBe(true)
+    expect(real.planned).toBeCloseTo(40_000, 6) // 88 150 in year 33 = 40 000 today
+    expect(real.diff).toBeCloseTo(-5_000, 6)
+    expect(real.diffShare!).toBeCloseTo(-1 / 9, 9)
+    const nominal = goalComparison(plan({ goal: { income: 80_000, real: false } }), run(plan()))!
+    expect(nominal.real).toBe(false)
+    expect(nominal.planned).toBeCloseTo(40_000 * Math.pow(1.025, 32), 6)
+    expect(nominal.diff).toBeCloseTo(40_000 * Math.pow(1.025, 32) - 80_000, 6)
   })
-  it('percentage strategies keep a constant real target', () => {
-    const s = { ...plan({ real: true, indexed: false }), withdrawal: { ...plan().withdrawal, strategy: 'initialPct' as const, indexed: false } }
-    expect(incomeTarget(s)).toEqual({ monthly: 40_000, real: true })
+  it('the goal never changes cashflows', () => {
+    const a = run(plan())
+    const b = run(plan({ goal: { income: 1, real: false } }))
+    const c = run(plan({ goal: { income: 1e6, real: true } }))
+    expect(b.balances).toEqual(a.balances)
+    expect(c.withdrawalYears).toEqual(a.withdrawalYears)
   })
   it.each([
     ['monthly', 'start'], ['quarterly', 'start'], ['annual', 'start'],
     ['monthly', 'end'], ['quarterly', 'end'], ['annual', 'end'],
   ] as const)('a partial withdrawal phase (%s, %s) is judged at its full-year rate everywhere', (frequency, timing) => {
     for (const extra of [1, 4, 5, 7]) {
-      const s = { ...plan({ real: false, indexed: false, frequency, initial: 1e8 }), timing, horizonYears: 32, horizonMonths: extra }
+      const s = { ...plan({ real: false, indexed: false, frequency, initial: 1e8, goal: { income: 40_000, real: false } }), timing, horizonYears: 32, horizonMonths: extra }
       const r = run(s)
       const y0 = r.withdrawalYears[0]
       const p = plannedIncome(s, r)!
@@ -269,14 +296,14 @@ describe('V4.1 review fixes', () => {
     const s: Scenario = { ...base, horizonYears: 32, horizonMonths: 5, timing: 'start', withdrawal: { ...base.withdrawal, strategy: 'currentPct', rate: 4 } }
     const r = run(s)
     const trueRate = r.withdrawalYears[0].planned / 12
-    const above = { ...s, retirement: { income: trueRate * 1.15, real: false } }
+    const above = { ...s, retirement: { enabled: true, income: trueRate * 1.15, real: false } }
     expect(incomeCheck(above, r)!.funded).toBe(false)
     expect(runMonteCarlo({ plan: toPlan(above), volatility: 0, simulations: 2, seed: 1, income: incomeTarget(above) }).incomeProbability).toBe(0)
-    const below = { ...s, retirement: { income: trueRate * 0.99, real: false } }
+    const below = { ...s, retirement: { enabled: true, income: trueRate * 0.99, real: false } }
     expect(incomeCheck(below, r)!.funded).toBe(true)
   })
   it('a zero budget in a partial year still counts as zero income (not as “no withdrawals”)', () => {
-    const base = plan({ real: false, indexed: false, initial: 0 })
+    const base = plan({ real: false, indexed: false, initial: 0, goal: { income: 1_000, real: false } })
     const s: Scenario = { ...base, constant: { amount: 0, frequency: 'monthly' }, horizonYears: 0, horizonMonths: 6, withdrawal: { ...base.withdrawal, strategy: 'currentPct', startYear: 1 } }
     const r = run(s)
     expect(incomeStats(r, 0)!.initial).toBe(0)
@@ -401,16 +428,89 @@ function expectSame(old: V4, migrated: Scenario) {
   else deepClose(pick(a), pick(b), 1e-12)
 }
 
+/**
+ * V4.1 deliberately fixed one case of the income rule: a withdrawal phase shorter than a year
+ * with quarterly/annual payouts (V4 divided lumpy payments by the months), or whose only payment
+ * falls after the horizon. Everywhere else the goal metrics must match V4.
+ */
+const partialOnlyPhase = (old: V4) => {
+  const ys = v4simulate(v4s.toPlan(old)).withdrawalYears
+  return ys.length > 0 && !ys.some((y) => y.months === 12) && (old.withdrawal.frequency !== 'monthly' || ys.some((y) => y.requested === 0))
+}
+
+/** Same desired-income goal, FI analysis and funding verdict as V4 computed. */
+function expectSameGoals(old: V4, m: Scenario) {
+  expect(m.retirement).toEqual({ enabled: true, income: old.retirement.income, real: old.retirement.real })
+  const ra = v4simulate(v4s.toPlan(old))
+  const rb = simulate(toPlan(m))
+  const fa = v4r.fiAnalysis(old, ra)
+  const fb = fiAnalysis(m, rb)
+  if (fa == null) return expect(fb).toBeNull()
+  expect(fb).not.toBeNull()
+  const { sustain: sa, ...ka } = fa
+  const { sustain: sb, ...kb } = fb!
+  deepClose(ka, kb, 1e-9)
+  const ca = v4r.incomeCheck(old, ra)
+  const cb = incomeCheck(m, rb)
+  if (partialOnlyPhase(old)) return
+  deepClose(sa, sb, 1e-9)
+  expect(cb?.funded).toBe(ca?.funded)
+  expect(cb?.firstShortYear ?? null).toBe(ca?.firstShortYear ?? null)
+}
+
 describe('V4.1 case F — saved V4 plans give identical results', () => {
   it('local storage (sanitize of the saved JSON) reproduces every V4 strategy exactly', () => {
     fc.assert(
       fc.property(arbV4, (old) => {
         const migrated = sanitizeScenario(JSON.parse(JSON.stringify(old)))!
-        expect(migrated.v).toBe(3)
+        expect(migrated.v).toBe(4)
         expectSame(old, migrated)
       }),
       { numRuns: 300 },
     )
+  })
+  it('saved V4 plans keep their desired-income goal, FI capital and funding verdict', () => {
+    fc.assert(
+      fc.property(arbV4, (old) => {
+        expectSameGoals(old, sanitizeScenario(JSON.parse(JSON.stringify(old)))!)
+      }),
+      { numRuns: 120 },
+    )
+  })
+  it('V4 share links keep the goal metrics too', () => {
+    fc.assert(
+      fc.property(arbV4, (old) => {
+        expectSameGoals(old, decodeShare(v4z.encodeShare(old))!)
+      }),
+      { numRuns: 40 },
+    )
+  })
+  it('Monte Carlo income probability and income distributions match V4', () => {
+    fc.assert(
+      fc.property(arbV4, fc.integer({ min: 1, max: 1000 }), (old, seed) => {
+        if (partialOnlyPhase(old)) return
+        const m = sanitizeScenario(JSON.parse(JSON.stringify(old)))!
+        const a = v4MonteCarlo({ plan: v4s.toPlan(old), volatility: 0.15, simulations: 40, seed, income: { monthly: old.retirement.income, real: old.retirement.real } })
+        const b = runMonteCarlo({ plan: toPlan(m), volatility: 0.15, simulations: 40, seed, income: incomeTarget(m) })
+        expect(b.incomeProbability).toBe(a.incomeProbability)
+        expect(b.depletionProbability).toBe(a.depletionProbability)
+        deepClose(a.lowestIncome, b.lowestIncome, 1e-9)
+        deepClose(a.firstIncome, b.firstIncome, 1e-9)
+        deepClose(a.finalPercentiles, b.finalPercentiles, 1e-9)
+      }),
+      { numRuns: 30 },
+    )
+  })
+  it('the V4 default with withdrawals on keeps both values: 20 000 withdrawn, 40 000 desired', () => {
+    const old = v4Base()
+    old.withdrawal = { ...old.withdrawal, enabled: true }
+    const m = sanitizeScenario(JSON.parse(JSON.stringify(old)))!
+    expect(m.withdrawal.amount).toBe(20_000)
+    expect(m.retirement).toEqual({ enabled: true, income: 40_000, real: true })
+    expectSame(old, m)
+    expectSameGoals(old, m)
+    const fi = fiAnalysis(m, simulate(toPlan(m)))!
+    expect(fi.capital).toBeCloseTo(v4r.fiAnalysis(old, v4simulate(v4s.toPlan(old)))!.capital, 6)
   })
   it('V4 share links decode to the same results', () => {
     fc.assert(
@@ -424,16 +524,15 @@ describe('V4.1 case F — saved V4 plans give identical results', () => {
     const old = v4Base()
     old.withdrawal = { ...old.withdrawal, enabled: true, amount: 30_000, indexed: true }
     let m = sanitizeScenario(JSON.parse(JSON.stringify(old)))!
-    expect(m.retirement).toEqual({ income: 30_000, real: true })
-    expect(m.withdrawal.indexed).toBe(true)
+    expect(m.withdrawal).toMatchObject({ amount: 30_000, amountReal: true, indexed: true })
+    expect(m.retirement).toEqual({ enabled: true, income: old.retirement.income, real: old.retirement.real })
     // 90 000 per quarter is shown as 30 000 a month.
     m = sanitizeScenario(JSON.parse(JSON.stringify({ ...old, withdrawal: { ...old.withdrawal, amount: 90_000, frequency: 'quarterly' } })))!
-    expect(m.retirement.income).toBe(30_000)
+    expect(m.withdrawal.amount).toBe(30_000)
     expect(toPlan(m).withdrawal!.amount).toBe(90_000)
     old.withdrawal.indexed = false
     m = sanitizeScenario(JSON.parse(JSON.stringify(old)))!
-    expect(m.retirement).toEqual({ income: 30_000, real: false })
-    expect(m.withdrawal.indexed).toBe(false)
+    expect(m.withdrawal).toMatchObject({ amount: 30_000, amountReal: false, indexed: false })
   })
   it('V4 guardrails floor keeps its old indexing; new plans default to today’s money', () => {
     const old = v4Base()
@@ -457,6 +556,37 @@ describe('V4.1 case F — saved V4 plans give identical results', () => {
     const now = buildPreset('lifecycle', 'CZK')
     const old: V4 = { ...v4Base(), ...JSON.parse(JSON.stringify(now)), v: 2 }
     old.withdrawal = { ...old.withdrawal, amount: 25_000 } as V4['withdrawal']
+    old.retirement = { income: 40_000, real: true }
     expectSame(old, now)
+    expectSameGoals(old, now)
+  })
+  it('the FI preset reproduces V4 including the strategy comparison', () => {
+    const now = buildPreset('fi', 'CZK')
+    const old: V4 = { ...v4Base(), ...JSON.parse(JSON.stringify(now)), v: 2 }
+    old.withdrawal = { ...old.withdrawal, amount: 20_000 } as V4['withdrawal']
+    old.retirement = { income: 45_000, real: true }
+    expectSame(old, now)
+    expectSameGoals(old, now)
+    const a = v4r.compareStrategies(old)
+    const b = compareStrategies(now)
+    expect(b.map((r) => r.strategy)).toEqual(a.map((r) => r.strategy))
+    for (let i = 0; i < a.length; i++) expect(b[i].result.balances).toEqual(a[i].result.balances)
+  })
+  it('v3 plans from the first V4.1 preview keep their withdrawal; a percentage plan keeps its goal', () => {
+    const v3 = { ...plan(), v: 3, retirement: { income: 40_000, real: true }, withdrawal: { ...plan().withdrawal, amount: undefined, amountReal: undefined } }
+    const m = sanitizeScenario(JSON.parse(JSON.stringify(v3)))!
+    expect(m.withdrawal).toMatchObject({ amount: 40_000, amountReal: true })
+    expect(m.retirement.enabled).toBe(false)
+    expect(run(m).withdrawalYears[0].requested).toBeCloseTo(12 * 40_000 * Math.pow(1.025, 32), 6)
+    const pct = sanitizeScenario(JSON.parse(JSON.stringify({ ...v3, withdrawal: { ...v3.withdrawal, strategy: 'initialPct' } })))!
+    expect(pct.retirement).toEqual({ enabled: true, income: 40_000, real: true })
+  })
+  it('new plans have no goal; the planned withdrawal and the goal are separate fields', () => {
+    const d = defaultScenario('CZK')
+    expect(d.retirement.enabled).toBe(false)
+    expect(d.withdrawal.amount).toBe(40_000)
+    const back = sanitizeScenario(JSON.parse(JSON.stringify({ ...d, retirement: { enabled: true, income: 55_000, real: false } })))!
+    expect(back.retirement).toEqual({ enabled: true, income: 55_000, real: false })
+    expect(back.withdrawal.amount).toBe(40_000)
   })
 })

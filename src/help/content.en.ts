@@ -236,10 +236,10 @@ export const helpEn: HelpContent = {
     limit: 'This uses a constant return. Real markets with bad years early in retirement can deplete a portfolio sooner — see the Risk view.',
   }),
   withdrawalAmount: (c) => ({
-    title: 'Withdrawal frequency',
-    what: 'How often money is paid out: monthly, quarterly or once a year.',
-    how: 'Amounts are always shown as a monthly equivalent (yearly total ÷ 12), so plans with different frequencies compare fairly.',
-    example: `${c.money(c.s.retirement.income)} a month paid quarterly means ${c.money(perYear(c.s.retirement.income, 'monthly') / 4)} per payment.`,
+    title: 'Planned monthly withdrawal',
+    what: 'How much the plan actually takes out of the portfolio each month. This drives the projection.',
+    how: 'It is always a monthly amount; with quarterly or annual payouts each payment is 3× or 12× larger. It is separate from the optional income goal, which only checks the plan.',
+    example: `${c.money(c.s.withdrawal.amount)} a month paid quarterly means ${c.money(perYear(c.s.withdrawal.amount, 'monthly') / 4)} per payment.`,
   }),
   withdrawalStart: (c) => ({
     title: 'Withdrawals start',
@@ -292,7 +292,7 @@ export const helpEn: HelpContent = {
   },
   amountBasis: (c) => {
     const years = Math.max(0, c.s.withdrawal.startYear - 1)
-    const a = c.s.retirement.income
+    const a = c.s.withdrawal.amount
     // The user's own numbers, so the user's own inflation (no 2.5 % fallback here).
     const rate = c.s.inflationEnabled ? c.s.inflation : 0
     const grown = a / realOf(1, years, rate)
@@ -372,10 +372,11 @@ export const helpEn: HelpContent = {
   desiredIncome: (c) => {
     const p = plannedIncome(c.s, c.computed.result)
     return {
-      title: 'Desired monthly income',
-      what: c.s.withdrawal.strategy === 'fixed' ? 'The monthly income you want to withdraw in retirement.' : 'The income you would like — the results show whether your percentage strategy actually reaches it.',
-      how: c.s.retirement.real ? 'Entered in today’s money: it is raised with inflation until withdrawals start, so it keeps the same purchasing power.' : 'Entered as the actual amount at the start of withdrawals: used as it is.',
-      example: p && c.s.withdrawal.strategy === 'fixed' ? `You entered ${c.money(c.s.retirement.income)}; in year ${p.startYear} the plan withdraws ${c.money(p.firstMonthly)} a month.` : undefined,
+      title: 'Income goal (optional)',
+      what: 'The monthly income you would like in retirement. It never changes what is withdrawn — the planned withdrawal does that.',
+      how: 'It is used for the financial-independence capital, the “funds your income” checks, Monte Carlo income probability and comparisons. “In today’s money” means it must keep its purchasing power in every retirement year; “Nominal” means a fixed amount.',
+      example: p && c.s.retirement.enabled ? `Your plan pays ${c.money(p.firstMonthly)} a month in year ${p.startYear}; your goal is ${c.money(c.s.retirement.income)}${c.s.retirement.real && c.s.inflationEnabled ? ' in today’s money' : ''}.` : undefined,
+      more: 'The goal and the withdrawal are never synchronised automatically. Use “Use planned income as goal” or “Use goal as withdrawal” to copy one into the other.',
     }
   },
   retirementIncome: () => ({
@@ -395,7 +396,7 @@ export const helpEn: HelpContent = {
   }),
   incomeFunding: (c) => ({
     title: 'Does the plan fund your income?',
-    what: `Checks whether every full retirement year pays at least your desired ${c.money(incomeTarget(c.s).monthly)} a month${incomeTarget(c.s).real ? ' in today’s money' : ''}.`,
+    what: `Checks whether every full retirement year pays at least your desired ${c.money(c.s.retirement.income)} a month${incomeTarget(c.s)?.real ? ' in today’s money' : ''}.`,
     how: 'A positive balance alone does not count — a strategy that cuts income to almost nothing can “survive” while not supporting your life.',
   }),
   requiredCapital: (c) => ({
@@ -434,7 +435,7 @@ export const helpEn: HelpContent = {
   }),
   incomeProbability: (c) => ({
     title: 'Chance of funding your income',
-    what: `The share of simulated paths in which every full retirement year paid at least ${c.money(incomeTarget(c.s).monthly)} a month${incomeTarget(c.s).real ? ' in today’s money' : ''}.`,
+    what: `The share of simulated paths in which every full retirement year paid at least ${c.money(c.s.retirement.income)} a month${incomeTarget(c.s)?.real ? ' in today’s money' : ''}.`,
     how: 'This is stricter — and more honest — than “the portfolio did not run out”.',
     limit: 'It describes this simplified model, not real markets.',
   }),

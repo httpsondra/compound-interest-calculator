@@ -40,12 +40,15 @@ export function buildPreset(id: PresetId, currency: Currency, keep?: Partial<Sce
         annualReturn: 6,
         contribMode: 'constant',
         constant: { amount: s(8_000), frequency: 'monthly' },
-        retirement: { income: s(25_000), real: true },
+        // Same as V4: a fixed 25 000 (today's money, raised every year) checked against a 40 000 goal.
+        retirement: { enabled: true, income: s(40_000), real: true },
         withdrawal: {
           ...base.withdrawal,
           enabled: true,
           startYear: 31,
           endYear: null,
+          amount: s(25_000),
+          amountReal: true,
           frequency: 'monthly',
           indexed: true,
           stopContributions: true,
@@ -65,11 +68,14 @@ export function buildPreset(id: PresetId, currency: Currency, keep?: Partial<Sce
           { id: uid('p'), years: 15, amount: s(35_000), frequency: 'monthly', paused: false },
           { id: uid('p'), years: 35, amount: 0, frequency: 'monthly', paused: true },
         ],
-        retirement: { income: s(45_000), real: true },
+        retirement: { enabled: true, income: s(45_000), real: true },
         withdrawal: {
           ...base.withdrawal,
           enabled: true,
           startYear: 26,
+          // V4's fixed amount, used if the strategy is switched (and in the strategy comparison).
+          amount: s(20_000),
+          amountReal: true,
           endYear: null,
           strategy: 'initialPct',
           rate: 4,

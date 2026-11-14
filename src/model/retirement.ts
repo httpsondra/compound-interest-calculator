@@ -188,8 +188,9 @@ function capitalForFixed(s: Scenario, annualAtStart: number, months: number): nu
   return hi
 }
 
+/** Financial independence needs an income goal: the capital is sized for the DESIRED income, not the planned withdrawal. */
 export function fiAnalysis(s: Scenario, res: SimResult): FiAnalysis | null {
-  if (!s.withdrawal.enabled) return null
+  if (!s.withdrawal.enabled || !s.retirement.enabled) return null
   const H = totalMonths(s)
   const startMonth = (s.withdrawal.startYear - 1) * 12
   if (startMonth >= H) return null
@@ -241,7 +242,7 @@ export function fiAnalysis(s: Scenario, res: SimResult): FiAnalysis | null {
   }
 
   // Does the selected strategy (deterministically) pay at least the desired income? Same rule as Monte Carlo.
-  const target = incomeTarget(s)
+  const target = incomeTarget(s)!
   const ev = evaluateIncome(res.withdrawalYears, infl, target.monthly, target.real)
   const firstShortYear = ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null
 
@@ -355,10 +356,10 @@ export function firstYearBudget(res: SimResult | null): { annual: number; monthl
 
 export { withdrawalPolicy, solveMonotone }
 
-/** Cheap desired-income check for the headline (no solving). */
+/** Cheap desired-income check for the headline (no solving). Null without an income goal. */
 export function incomeCheck(s: Scenario, res: SimResult) {
-  if (!s.withdrawal.enabled || !res.withdrawalYears.length) return null
   const goal = incomeTarget(s)
+  if (!goal || !s.withdrawal.enabled || !res.withdrawalYears.length) return null
   const ev = evaluateIncome(res.withdrawalYears, inflationRate(s), goal.monthly, goal.real)
   // No payment inside the horizon: there is no income to judge (the headline falls back to the balance).
   if (ev.evaluatedYears === 0) return null
@@ -423,5 +424,49 @@ export function plannedIncome(s: Scenario, res: SimResult | null): PlannedIncome
     firstPaidMonthly: firstMonthly * paidShare,
     firstUnfundedMonthly: firstMonthly * (1 - paidShare),
     perPayment: firstAnnual / PER_YEAR[s.withdrawal.frequency],
+  }
+}
+
+/* ───────── Planned income vs the optional goal ───────── */
+
+export interface GoalComparison {
+  /** Goal basis: true = both values in today's money, false = both nominal. */
+  real: boolean
+  /** Planned monthly income in the first withdrawal year, in the goal's units. */
+  planned: number
+  goal: number
+  /** planned − goal (same units, same month). */
+  diff: number
+  /** diff ÷ goal, as a fraction (null when the goal is 0). */
+  diffShare: number | null
+  startYear: number
+  /** The whole-retirement funding verdict (same rule as Monte Carlo). */
+  funded: boolean
+  firstShortYear: number | null
+  lowest: number
+  evaluatedYears: number
+}
+
+/**
+ * Compare the planned first-year income with the goal in matching units: both monthly, both in
+ * the first withdrawal year, both in today's money when the goal is, otherwise both nominal.
+ */
+export function goalComparison(s: Scenario, res: SimResult | null): GoalComparison | null {
+  const target = incomeTarget(s)
+  const p = plannedIncome(s, res)
+  if (!target || !p || !res) return null
+  const planned = target.real ? p.firstMonthlyReal : p.firstMonthly
+  const ev = evaluateIncome(res.withdrawalYears, inflationRate(s), target.monthly, target.real)
+  return {
+    real: target.real,
+    planned,
+    goal: target.monthly,
+    diff: planned - target.monthly,
+    diffShare: target.monthly > 0 ? planned / target.monthly - 1 : null,
+    startYear: p.startYear,
+    funded: ev.funded,
+    firstShortYear: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null,
+    lowest: ev.lowest,
+    evaluatedYears: ev.evaluatedYears,
   }
 }

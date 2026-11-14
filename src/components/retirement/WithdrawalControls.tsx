@@ -2,7 +2,7 @@ import { useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { useI18n } from '../../i18n'
 import type { Frequency } from '../../engine/types'
 import { WITHDRAWAL_FREQUENCIES, WITHDRAWAL_STRATEGIES, scaledAmount, type WithdrawalStrategy } from '../../model/scenario'
-import { plannedIncome } from '../../model/retirement'
+import { goalComparison, plannedIncome } from '../../model/retirement'
 import { useApp } from '../../state/context'
 import { useIssue } from '../plan/Controls'
 import { HelpTip } from '../ui/HelpTip'
@@ -15,7 +15,7 @@ import type { HelpId } from '../../help'
  * Withdrawal configuration (V4.1).
  *
  * Two independent inflation questions are asked separately:
- *   1. How is the income entered?      → "Today's money" | "At retirement"   (retirement.real)
+ *   1. How is the amount entered?      → "Today's money" | "At retirement"   (withdrawal.amountReal)
  *   2. Does it rise during retirement?  → switch                               (withdrawal.indexed)
  * Only controls that change the result of the selected strategy are shown, and the
  * live breakdown explains — with numbers from the engine — why the planned income in
@@ -87,22 +87,123 @@ function StrategyPicker({ labelledBy }: { labelledBy?: string }) {
   )
 }
 
-/** "Today's money | At retirement" — how the desired income is entered. */
-function BasisToggle({ size = 'sm' }: { size?: 'xs' | 'sm' }) {
+/** "Today's money | At retirement" — how the fixed withdrawal amount is entered. */
+function BasisToggle() {
   const { t } = useI18n()
   const { scenario: s, update } = useApp()
   return (
     <Segmented
-      size={size}
+      size="sm"
       label={t.wd.basisLabel}
       help="amountBasis"
-      value={s.retirement.real ? 'today' : 'start'}
+      value={s.withdrawal.amountReal ? 'today' : 'start'}
       options={[
         { value: 'today', label: t.wd.basisToday },
         { value: 'start', label: t.wd.basisStart },
       ]}
-      onChange={(v) => update((x) => ({ ...x, retirement: { ...x.retirement, real: v === 'today' } }))}
+      onChange={(v) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, amountReal: v === 'today' } }))}
     />
+  )
+}
+
+/**
+ * Optional income goal. Kept apart from the withdrawal settings: it never changes cashflows, only
+ * the checks. The two values are never synchronised; the buttons copy one into the other on request.
+ */
+export function IncomeGoal() {
+  const { t, f, fill } = useI18n()
+  const { scenario: s, computed, update } = useApp()
+  const affix = f.currencyAffix(s.currency)
+  const money = (v: number) => f.money(v, s.currency)
+  const g = s.retirement
+  const p = plannedIncome(s, computed.result)
+  const cmp = goalComparison(s, computed.result)
+  const setG = (patch: Partial<typeof g>, key?: string) => update((x) => ({ ...x, retirement: { ...x.retirement, ...patch } }), key)
+  const copyToGoal = () => p && setG({ income: Math.round(g.real && s.inflationEnabled ? p.firstMonthlyReal : p.firstMonthly) })
+  const copyToAmount = () =>
+    update((x) => ({ ...x, withdrawal: { ...x.withdrawal, amount: x.retirement.income, amountReal: x.retirement.real } }))
+  const sign = (v: number) => (v > 0.5 ? '+' : v < -0.5 ? '−' : '±')
+  return (
+    <section className="wd-goal" aria-label={t.wd.goalTitle}>
+      <Switch
+        label={t.wd.goalSwitch}
+        help="desiredIncome"
+        description={t.wd.goalSwitchHelp}
+        checked={g.enabled}
+        onChange={(v) => setG({ enabled: v })}
+      />
+      {g.enabled && (
+        <div className="wd-goal-body">
+          <NumberField
+            id="f-goal"
+            size="sm"
+            label={t.wd.goalLabel}
+            value={g.income}
+            min={0}
+            max={1e12}
+            step={scaledAmount(1000, s.currency)}
+            {...affix}
+            suffix={affix.suffix ? `${affix.suffix} ${t.per.monthly}` : t.per.monthly}
+            onChange={(v) => setG({ income: v }, 'ret.income')}
+          />
+          {s.inflationEnabled && (
+            <Segmented
+              size="xs"
+              label={t.wd.goalBasisLabel}
+              help="realIncome"
+              value={g.real ? 'real' : 'nominal'}
+              options={[
+                { value: 'real', label: t.wd.goalBasisReal },
+                { value: 'nominal', label: t.wd.goalBasisNominal },
+              ]}
+              onChange={(v) => setG({ real: v === 'real' })}
+            />
+          )}
+          {cmp && (
+            <div className="goal-cmp" aria-live="polite">
+              <dl className="goal-cmp-rows">
+                <div>
+                  <dt>{fill(t.wd.goalPlanned, { year: cmp.startYear })}</dt>
+                  <dd>{money(cmp.planned)}</dd>
+                </div>
+                <div>
+                  <dt>{t.wd.goalTarget}</dt>
+                  <dd>{money(cmp.goal)}</dd>
+                </div>
+                <div className={`goal-cmp-diff ${cmp.diff < -0.5 ? 'is-warn' : 'is-pos'}`}>
+                  <dt>{t.wd.goalDiff}</dt>
+                  <dd>
+                    {sign(cmp.diff)}
+                    {money(Math.abs(cmp.diff))}
+                    {cmp.diffShare != null && Math.abs(cmp.diff) > 0.5 && <span> ({sign(cmp.diff)}{f.pct(Math.abs(cmp.diffShare) * 100, 1)})</span>}
+                  </dd>
+                </div>
+              </dl>
+              <p className="goal-cmp-units">{cmp.real ? t.wd.goalUnitsReal : fill(t.wd.goalUnitsNominal, { year: cmp.startYear })}</p>
+              <p className={`goal-cmp-verdict ${cmp.funded ? 'is-pos' : 'is-warn'}`}>
+                {cmp.evaluatedYears === 0
+                  ? t.wd.goalNoYears
+                  : cmp.funded
+                    ? t.wd.goalAllYears
+                    : fill(t.wd.goalShortFrom, { year: cmp.firstShortYear ?? '', lowest: money(cmp.lowest) })}
+              </p>
+            </div>
+          )}
+          <div className="goal-actions">
+            {p && (
+              <button type="button" className="chip-btn" onClick={copyToGoal}>
+                {t.wd.copyToGoal}
+              </button>
+            )}
+            {s.withdrawal.strategy === 'fixed' && (
+              <button type="button" className="chip-btn" onClick={copyToAmount}>
+                {t.wd.copyToAmount}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -145,19 +246,19 @@ export function IncomeBreakdown() {
   let lead: string
   let explain: string | null
   if (w.strategy === 'fixed') {
-    if (s.retirement.real) {
+    if (w.amountReal) {
       rows = [
-        { k: t.wd.rowDesiredToday, v: `${money(s.retirement.income)} ${per}` },
+        { k: t.wd.rowDesiredToday, v: `${money(w.amount)} ${per}` },
         ...(inflOn && !immediate ? [{ k: t.wd.rowInflationBefore, v: fill(t.wd.rowInflationBeforeV, { rate: pct(p.inflationPct), years: years(p.yearsBefore) }) }] : []),
       ]
       lead = where
       explain = immediate
         ? t.wd.explainImmediate
         : inflOn
-          ? fill(falling ? t.wd.explainTodayDown : t.wd.explainToday, { rate: pct(p.inflationPct), value: money(p.firstMonthly), year: p.startYear, today: money(s.retirement.income) })
+          ? fill(falling ? t.wd.explainTodayDown : t.wd.explainToday, { rate: pct(p.inflationPct), value: money(p.firstMonthly), year: p.startYear, today: money(w.amount) })
           : t.wd.explainNoInflation
     } else {
-      rows = [{ k: t.wd.rowEnteredStart, v: `${money(s.retirement.income)} ${per}` }]
+      rows = [{ k: t.wd.rowEnteredStart, v: `${money(w.amount)} ${per}` }]
       lead = where
       explain =
         inflOn && !immediate
@@ -206,7 +307,7 @@ export function IncomeBreakdown() {
         <span className="breakdown-v">
           {money(p.firstMonthly)} <span>{per}</span>
         </span>
-        {inflOn && !immediate && (w.strategy !== 'fixed' || !s.retirement.real) && (
+        {inflOn && !immediate && (w.strategy !== 'fixed' || !w.amountReal) && (
           <span className="breakdown-sub">{fill(t.wd.inTodayMoney, { value: money(p.firstMonthlyReal) })}</span>
         )}
         {w.frequency !== 'monthly' && (
@@ -232,7 +333,7 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
   const affix = f.currencyAffix(s.currency)
   const w = s.withdrawal
   const setW = (patch: Partial<typeof w>, key?: string) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, ...patch } }), key)
-  const setIncome = (v: number) => update((x) => ({ ...x, retirement: { ...x.retirement, income: v } }), 'ret.income')
+  const setAmount = (v: number) => setW({ amount: v }, 'w.amount')
   const fixed = w.strategy === 'fixed'
   const startAge = s.startAge != null ? s.startAge + w.startYear - 1 : null
   const strategyHead = useId()
@@ -274,21 +375,21 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
           </section>
 
           {fixed ? (
-            <Step n={2} title={t.wd.stepIncome} help="desiredIncome">
+            <Step n={2} title={t.wd.stepIncome} help="withdrawalAmount">
               <div className="contrib-row">
                 <NumberField
                   id="f-w-income"
                   size="lg"
                   hideLabel
                   label={t.wd.stepIncome}
-                  value={s.retirement.income}
+                  value={w.amount}
                   min={0}
                   max={1e12}
                   step={scaledAmount(1000, s.currency)}
                   {...affix}
                   suffix={affix.suffix ? `${affix.suffix} ${t.per.monthly}` : t.per.monthly}
                   slider={{ min: 0, max: scaledAmount(200_000, s.currency), scale: 'pow' }}
-                  onChange={setIncome}
+                  onChange={setAmount}
                 />
                 <Select<Frequency>
                   label={t.retire.payout}
@@ -380,21 +481,6 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
                   />
                 </div>
               )}
-              <div className="wd-target">
-                <NumberField
-                  id="f-w-target"
-                  size="sm"
-                  help="desiredIncome"
-                  label={t.wd.targetLabel}
-                  value={s.retirement.income}
-                  min={0}
-                  max={1e12}
-                  step={scaledAmount(1000, s.currency)}
-                  {...affix}
-                  onChange={setIncome}
-                />
-                <BasisToggle size="xs" />
-              </div>
             </Step>
           )}
 
@@ -446,6 +532,7 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
           </Step>
 
           <IncomeBreakdown />
+          <IncomeGoal />
         </>
       )}
     </div>

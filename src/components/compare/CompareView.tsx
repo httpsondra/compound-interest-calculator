@@ -169,6 +169,7 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
               const sc = scenarios[i]
               if (!sum || !sc.withdrawal.enabled) return { value: '—' }
               const goal = incomeTarget(sc)
+              if (!goal) return { value: '—' }
               const ev = evaluateIncome(sum.result.withdrawalYears, inflationRate(sc), goal.monthly, goal.real)
               return ev.funded ? { value: t.retire.yes, tone: 'pos' as const } : { value: t.retire.no, tone: 'warn' as const }
             },

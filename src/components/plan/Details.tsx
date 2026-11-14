@@ -228,7 +228,7 @@ export function WithdrawalCard() {
                 : Number.isFinite(computed.sustainable.value)
                   ? `${money(paymentToMonthly(computed.sustainable.value, s.withdrawal.frequency))} ${t.per.monthly}`
                   : '—'}
-              {computed.sustainable.kind === 'amount' && s.retirement.real && s.inflationEnabled && <span className="tile-sub">{t.results.real}</span>}
+              {computed.sustainable.kind === 'amount' && s.withdrawal.amountReal && s.inflationEnabled && <span className="tile-sub">{t.results.real}</span>}
               {computed.sustainable.kind === 'rate' && res.withdrawalYears[0] && (
                 <span className="tile-sub">
                   ≈ {money((computed.sustainable.value * res.withdrawalYears[0].reviewBalance) / 12)} {t.per.monthly}

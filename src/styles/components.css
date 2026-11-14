@@ -2838,22 +2838,117 @@
   min-width: 0;
 }
 
-.wd-target {
-  display: grid;
-  gap: var(--s-2);
-  padding: 12px;
-  border-radius: var(--r-md);
-  background: var(--surface-sunken);
-}
-
-.wd-target .nf-box {
-  background: var(--surface);
-}
-
 .wd-note {
   margin: 0;
   font-size: var(--fs-xs);
   line-height: var(--lh-snug);
+  color: var(--text-2);
+}
+
+/* Optional income goal: separate from the withdrawal steps, quiet until switched on. */
+.wd-goal {
+  display: grid;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+.wd-goal-body {
+  display: grid;
+  gap: var(--s-3);
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  min-width: 0;
+}
+
+.wd-goal-body .nf-box {
+  background: var(--surface);
+}
+
+.goal-cmp {
+  display: grid;
+  gap: 6px;
+}
+
+.goal-cmp-rows {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.goal-cmp-rows > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  font-size: var(--fs-xs);
+}
+
+.goal-cmp-rows dt {
+  color: var(--text-2);
+  min-width: 0;
+}
+
+.goal-cmp-rows dd {
+  margin: 0;
+  flex: none;
+  font-weight: 560;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.goal-cmp-diff {
+  padding-top: 4px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.goal-cmp-diff.is-pos dd {
+  color: var(--c-pos);
+}
+
+.goal-cmp-diff.is-warn dd {
+  color: var(--c-warn);
+}
+
+.goal-cmp-diff dd span {
+  font-weight: 450;
+}
+
+.goal-cmp-units,
+.goal-cmp-verdict {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-3);
+}
+
+.goal-cmp-verdict.is-pos {
+  color: var(--c-pos);
+}
+
+.goal-cmp-verdict.is-warn {
+  color: var(--c-warn);
+}
+
+.goal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.no-goal {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-3);
+}
+
+.no-goal-text {
+  margin: 0;
+  max-width: 60ch;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
   color: var(--text-2);
 }
 

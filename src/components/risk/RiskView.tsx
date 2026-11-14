@@ -33,7 +33,9 @@ export default function RiskView() {
   }, [])
 
   const H = totalMonths(s)
-  const { monthly: incomeMonthly, real: incomeReal } = incomeTarget(s)
+  const target = incomeTarget(s)
+  const incomeMonthly = target?.monthly ?? 0
+  const incomeReal = target?.real ?? false
   const goal = s.goal.enabled && s.goal.year * 12 <= H ? { target: s.goal.target, month: s.goal.year * 12, real: s.goal.real } : null
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function RiskView() {
       simulations: Number(sims),
       seed,
       goal,
-      income: plan.withdrawal ? { monthly: incomeMonthly, real: incomeReal } : null,
+      income: plan.withdrawal && target ? { monthly: incomeMonthly, real: incomeReal } : null,
     }
     setRunning(true)
     const timer = window.setTimeout(() => {
@@ -82,7 +84,7 @@ export default function RiskView() {
       }
     }, 220)
     return () => window.clearTimeout(timer)
-  }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real, incomeMonthly, incomeReal]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real, target != null, incomeMonthly, incomeReal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const money = (v: number) => f.money(v, s.currency)
   const extra = {

@@ -35,8 +35,11 @@ export type WithdrawalStrategy = 'fixed' | 'initialPct' | 'currentPct' | 'guardr
 export const WITHDRAWAL_STRATEGIES: WithdrawalStrategy[] = ['fixed', 'initialPct', 'currentPct', 'guardrails']
 
 export interface Scenario {
-  /** 3 = V4.1 withdrawal model (explicit amount basis). Older versions are migrated in serialize.ts. */
-  v: 3
+  /**
+   * 4 = V4.1 withdrawal model: the planned withdrawal and the optional income goal are separate.
+   * Older versions are migrated in serialize.ts.
+   */
+  v: 4
   id: string
   name: string
   currency: Currency
@@ -66,6 +69,13 @@ export interface Scenario {
     /** Inclusive last year, null = until the end of the plan. */
     endYear: number | null
     frequency: Frequency
+    /** Fixed strategy: the planned withdrawal per MONTH (quarterly/annual payouts pay 3× / 12× per payment). */
+    amount: number
+    /**
+     * How `amount` was entered: true = today's purchasing power (grown with inflation until
+     * withdrawals begin), false = the nominal amount in the first withdrawal year.
+     */
+    amountReal: boolean
     /**
      * Raise income with inflation once a year DURING retirement (fixed amount, initial % and the
      * inflation adjustment of dynamic spending). Independent of how the amount was entered.
@@ -85,16 +95,16 @@ export interface Scenario {
     floorReal: boolean
   }
   /**
-   * The monthly income the user wants in retirement. For the fixed-amount strategy this IS the
-   * planned withdrawal; for percentage strategies it is the target the results are checked against.
+   * Optional income GOAL: the monthly income the user would like in retirement. It never changes
+   * cashflows; it drives financial-independence capital, "funds your income" checks, Monte Carlo
+   * income probability and comparisons. Independent of the planned withdrawal (`withdrawal.amount`).
    */
   retirement: {
+    /** A goal is set. Without one, goal-based metrics are hidden. */
+    enabled: boolean
     /** Desired monthly income. */
     income: number
-    /**
-     * How `income` was entered: true = today's purchasing power (grown with inflation until
-     * withdrawals begin), false = the nominal amount at the start of withdrawals.
-     */
+    /** true = in today's money: the goal keeps its purchasing power in every retirement year. */
     real: boolean
   }
   goal: { enabled: boolean; target: number; year: number; real: boolean }
@@ -120,7 +130,7 @@ export function scaledAmount(czk: number, currency: Currency): number {
 export function defaultScenario(currency: Currency = 'CZK', name = ''): Scenario {
   const s = (v: number) => scaledAmount(v, currency)
   return {
-    v: 3,
+    v: 4,
     id: uid('sc'),
     name,
     currency,
@@ -148,6 +158,8 @@ export function defaultScenario(currency: Currency = 'CZK', name = ''): Scenario
       enabled: false,
       startYear: 21,
       endYear: null,
+      amount: s(40_000),
+      amountReal: true,
       frequency: 'monthly',
       indexed: true,
       stopContributions: true,
@@ -158,7 +170,7 @@ export function defaultScenario(currency: Currency = 'CZK', name = ''): Scenario
       floor: 0,
       floorReal: true,
     },
-    retirement: { income: s(40_000), real: true },
+    retirement: { enabled: false, income: s(40_000), real: true },
     goal: { enabled: false, target: s(5_000_000), year: 30, real: false },
   }
 }
@@ -204,20 +216,12 @@ export function inflationRate(s: Scenario): number {
 }
 
 /**
- * The monthly income the "funds your income" checks compare against (deterministic and Monte Carlo).
- * • real: the desired income must keep its purchasing power in every year (today's money).
- * • A fixed amount entered in today's money that is NOT raised during retirement is, by the user's
- *   own choice, a constant nominal amount from the first withdrawal year on: the target is that
- *   nominal amount, so a plan that pays exactly what it planned is never reported as short.
+ * The optional income goal the "funds your income" checks compare against (deterministic and
+ * Monte Carlo), or null when no goal is set. real = it must keep its purchasing power every year.
  */
-export function incomeTarget(s: Scenario): { monthly: number; real: boolean } {
-  const infl = inflationRate(s)
-  const w = s.withdrawal
-  if (w.strategy === 'fixed' && s.retirement.real && !w.indexed && infl !== 0) {
-    const yearsBefore = Math.floor(((w.startYear - 1) * 12) / 12)
-    return { monthly: s.retirement.income * Math.pow(1 + infl, yearsBefore), real: false }
-  }
-  return { monthly: s.retirement.income, real: s.retirement.real && infl !== 0 }
+export function incomeTarget(s: Scenario): { monthly: number; real: boolean } | null {
+  if (!s.retirement.enabled) return null
+  return { monthly: s.retirement.income, real: s.retirement.real && inflationRate(s) !== 0 }
 }
 
 /** Months covered by one payment (monthly 1, quarterly 3, annual 12). */
@@ -248,12 +252,12 @@ export function toPlan(s: Scenario): PlanInput {
       ? {
           startMonth: (w.startYear - 1) * 12,
           endMonth: w.endYear == null ? H : w.endYear * 12,
-          // Fixed strategy: the monthly income is the withdrawal; the engine wants it per payment.
-          amount: monthlyToPayment(s.retirement.income, w.frequency),
+          // Fixed strategy: the planned monthly withdrawal; the engine wants it per payment.
+          amount: monthlyToPayment(w.amount, w.frequency),
           frequency: w.frequency,
           stopContributions: w.stopContributions,
           indexRate: w.indexed ? infl : 0,
-          preIndexRate: s.retirement.real ? infl : 0,
+          preIndexRate: w.amountReal ? infl : 0,
           timing: s.timing,
           policy: withdrawalPolicy(s),
         }

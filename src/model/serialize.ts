@@ -10,6 +10,7 @@ import {
   type GrowthMode,
   type Scenario,
   paymentToMonthly,
+  scaledAmount,
 } from './scenario'
 
 /*
@@ -66,31 +67,47 @@ export function sanitizeScenario(input: unknown, fallbackCurrency: Currency = 'C
   const startAge = input.startAge == null ? null : int(input.startAge, 0, 120, 30)
 
   /*
-   * V4.1 migration (scenario version < 3).
-   * Before V4.1 one switch (`indexed`) meant BOTH "the fixed amount is in today's money" and
-   * "raise it every year in retirement", and the fixed amount lived in `withdrawal.amount`
-   * next to a separate desired income. V4.1 merges the fixed amount into the desired income
-   * and splits the two inflation questions. The mapping reproduces V4 results exactly:
-   *   (a quarterly/annual amount becomes its monthly equivalent: amount ÷ 3 or ÷ 12)
-   *   fixed + indexed      → income = amount, basis "today's money", raised during retirement
-   *   fixed + not indexed  → income = amount, basis "at retirement", constant during retirement
-   *   guardrails floor     → in today's money only if it was indexed before
-   * Percentage strategies keep their desired income (it never drove withdrawals).
+   * Withdrawal migration (see README "Migration").
+   *
+   * V4 and older (no `v` or v < 3): one switch (`indexed`) meant BOTH "the fixed amount is in
+   * today's money" and "raise it every year in retirement"; the fixed amount (`withdrawal.amount`,
+   * per payment) and the desired income (`retirement`) were separate values. Both are preserved:
+   *   amount      = the V4 amount as a monthly equivalent (quarterly ÷ 3, annual ÷ 12)
+   *   amountReal  = indexed (today's money) · indexed stays the in-retirement raise
+   *   goal        = the V4 desired income, switched on (V4 always checked against it)
+   *   guardrails floor in today's money only if it was indexed before
+   * This reproduces V4 cashflows AND goal metrics (FI capital, funding checks, Monte Carlo).
+   *
+   * v3 (the first V4.1 preview, where the fixed amount and the desired income were one field):
+   *   fixed      → that value is the planned withdrawal; no separate goal
+   *   percentage → that value was the goal; it stays the goal (and seeds the fixed amount)
    */
-  const legacy = input.v !== 3
+  const version = typeof input.v === 'number' ? input.v : 2
   const strategy = oneOf<WithdrawalStrategy>(w.strategy, WITHDRAWAL_STRATEGIES, 'fixed')
   const indexed = bool(w.indexed, true)
-  const legacyFixed = legacy && strategy === 'fixed'
-  // V4 stored the fixed amount per payment; V4.1 stores a monthly income.
-  const legacyFreq = oneOf<Frequency>(w.frequency, ['monthly', 'quarterly', 'annual'], 'monthly')
-  const income = legacyFixed
-    ? paymentToMonthly(num(w.amount, 0, MONEY_MAX, num(r.income, 0, MONEY_MAX, d.retirement.income)), legacyFreq)
-    : num(r.income, 0, MONEY_MAX, d.retirement.income)
-  const incomeReal = legacyFixed ? indexed : bool(r.real, true)
-  const floorReal = legacy ? indexed : bool(w.floorReal, true)
+  const frequency = oneOf<Frequency>(w.frequency, ['monthly', 'quarterly', 'annual'], 'monthly')
+  const goalIncome = num(r.income, 0, MONEY_MAX, d.retirement.income)
+  const goalReal = bool(r.real, true)
+  let amount: number
+  let amountReal: boolean
+  let goalEnabled: boolean
+  if (version < 3) {
+    amount = paymentToMonthly(num(w.amount, 0, MONEY_MAX, scaledAmount(20_000, currency)), frequency)
+    amountReal = indexed
+    goalEnabled = true
+  } else if (version === 3) {
+    amount = goalIncome
+    amountReal = goalReal
+    goalEnabled = strategy !== 'fixed'
+  } else {
+    amount = num(w.amount, 0, MONEY_MAX, d.withdrawal.amount)
+    amountReal = bool(w.amountReal, true)
+    goalEnabled = bool(r.enabled, false)
+  }
+  const floorReal = version < 3 ? indexed : bool(w.floorReal, true)
 
   return {
-    v: 3,
+    v: 4,
     id: typeof input.id === 'string' && /^[\w-]{1,64}$/.test(input.id) ? input.id : uid('sc'),
     name: str(input.name, 60, ''),
     currency,
@@ -121,7 +138,9 @@ export function sanitizeScenario(input: unknown, fallbackCurrency: Currency = 'C
       enabled: bool(w.enabled, false),
       startYear: int(w.startYear, 1, 100, d.withdrawal.startYear),
       endYear: w.endYear == null ? null : int(w.endYear, 1, 100, 30),
-      frequency: oneOf<Frequency>(w.frequency, ['monthly', 'quarterly', 'annual'], 'monthly'),
+      amount,
+      amountReal,
+      frequency,
       indexed,
       stopContributions: bool(w.stopContributions, true),
       strategy,
@@ -131,7 +150,7 @@ export function sanitizeScenario(input: unknown, fallbackCurrency: Currency = 'C
       floor: num(w.floor, 0, MONEY_MAX, 0),
       floorReal,
     },
-    retirement: { income, real: incomeReal },
+    retirement: { enabled: goalEnabled, income: goalIncome, real: goalReal },
     goal: {
       enabled: bool(g.enabled, false),
       target: num(g.target, 0, MONEY_MAX, d.goal.target),

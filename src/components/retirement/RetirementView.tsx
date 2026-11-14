@@ -90,7 +90,7 @@ export default function RetirementView({ onCompare }: { onCompare: () => void })
             </section>
           ) : (
             <>
-              {fi && <FiCard fi={fi} />}
+              {fi ? <FiCard fi={fi} /> : <NoGoalCard />}
               <section className="card chart-card" aria-labelledby="ret-chart-h">
                 <header className="card-head">
                   <div className="title-row">
@@ -181,8 +181,9 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
   const money = (v: number) => f.money(v, s.currency)
   const year = s.withdrawal.startYear
   const goal = incomeTarget(s)
-  const ev = computed.result ? evaluateIncome(computed.result.withdrawalYears, inflationRate(s), goal.monthly, goal.real) : null
+  const ev = goal && computed.result ? evaluateIncome(computed.result.withdrawalYears, inflationRate(s), goal.monthly, goal.real) : null
   const dep = stats.depletedAtMonth
+  const shortYear = stats.shortfall > 0.5 ? (computed.result?.withdrawalYears.find((y) => y.paid < y.requested - 0.5)?.index ?? 0) + s.withdrawal.startYear : null
   const pick = (n: number, r: number) => (real ? r : n)
   return (
     <section className="hero" aria-labelledby="ret-hero-h">
@@ -209,7 +210,7 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
             : fill(t.wd.heroReal, { value: money(stats.initialReal) })}
         </p>
       )}
-      {ev && (
+      {goal && ev ? (
         <p className={`status-line ${ev.funded ? 'is-pos' : 'is-warn'}`} role="status">
           <span className="status-dot" aria-hidden="true" />
           {ev.funded
@@ -221,6 +222,12 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
               })}
           <span className="status-sub">{goal.real ? t.results.real : t.results.nominal}</span>
           <HelpTip topic="incomeFunding" />
+        </p>
+      ) : (
+        <p className={`status-line ${shortYear != null ? 'is-warn' : 'is-pos'}`} role="status">
+          <span className="status-dot" aria-hidden="true" />
+          {shortYear != null ? fill(t.wd.planShortFrom, { year: shortYear }) : t.wd.planAllPaid}
+          <HelpTip topic="desiredVsActual" />
         </p>
       )}
       <dl className="hero-stats">
@@ -260,6 +267,29 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
           </dd>
         </div>
       </dl>
+    </section>
+  )
+}
+
+/** Shown instead of the FI card when no income goal is set: one explicit action, no clutter. */
+function NoGoalCard() {
+  const { t } = useI18n()
+  const { update } = useApp()
+  // Only switches the goal on, with its last value: the goal and the withdrawal are never synchronised.
+  const setGoal = () => update((x) => ({ ...x, retirement: { ...x.retirement, enabled: true } }))
+  return (
+    <section className="card no-goal" aria-labelledby="no-goal-h">
+      <div className="title-row">
+        <h2 id="no-goal-h" className="section-title">
+          {t.wd.noGoalTitle}
+        </h2>
+        <HelpTip topic="financialIndependence" label={t.wd.noGoalTitle} />
+      </div>
+      <p className="no-goal-text">{t.wd.noGoalText}</p>
+      <button type="button" className="btn btn--ghost btn--sm" onClick={setGoal}>
+        <Icon name="target" size={15} />
+        {t.wd.noGoalCta}
+      </button>
     </section>
   )
 }
@@ -396,7 +426,7 @@ function PairedCharts({
   })
   const region = [{ start, end, label: t.withdrawal.title }]
   const goal = incomeTarget(s)
-  const desired = goal.real === real || !s.inflationEnabled ? { value: goal.monthly, label: `${t.retire.desiredShort} ${f.money(goal.monthly, s.currency, { compact: true })}` } : null
+  const desired = goal && (goal.real === real || !s.inflationEnabled) ? { value: goal.monthly, label: `${t.retire.desiredShort} ${f.money(goal.monthly, s.currency, { compact: true })}` } : null
   const dep = results[0].res.totals.depletedAtMonth
   return (
     <div className="paired">
@@ -543,6 +573,7 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
   const rows = useMemo(() => compareStrategies(s), [s])
   if (!rows.length) return null
   const infl = inflationRate(s)
+  const goalSet = s.retirement.enabled
   const money = (v: number) => f.money(v, s.currency)
   return (
     <section className="card" aria-labelledby="strat-h">
@@ -590,10 +621,11 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
                 ))}
               </tr>
             ))}
+            {goalSet && (
             <tr>
               <th scope="row">{t.retire.fundsIncome}</th>
               {rows.map((r) => {
-                const goal = incomeTarget({ ...s, withdrawal: { ...s.withdrawal, strategy: r.strategy } })
+                const goal = incomeTarget(s)!
                 const ev = evaluateIncome(r.result.withdrawalYears, infl, goal.monthly, goal.real)
                 return (
                   <td key={r.strategy}>
@@ -602,6 +634,7 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
                 )
               })}
             </tr>
+            )}
           </tbody>
         </table>
       </div>

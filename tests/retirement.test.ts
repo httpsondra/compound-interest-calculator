@@ -15,11 +15,20 @@ import {
   stressTest,
 } from '../src/model/retirement'
 
-/** `amount` is the V4 shorthand for a fixed withdrawal: since V4.1 it is the retirement income, entered in today's money when indexed. */
-const retiree = (o: Partial<Scenario['withdrawal']> & { amount?: number } = {}, extra: Partial<Scenario> = {}): Scenario => {
+type Goal = { income: number; real: boolean }
+/**
+ * A retiree plan with an income goal (as in V4, goal metrics are always on here). `amount` is a
+ * fixed monthly withdrawal in today's money when indexed; without an explicit goal it is also the goal.
+ */
+const retiree = (
+  o: Partial<Scenario['withdrawal']> = {},
+  extra: Omit<Partial<Scenario>, 'retirement'> & { retirement?: Goal } = {},
+): Scenario => {
   const s = defaultScenario('CZK')
-  const { amount, ...w } = o
-  if (amount != null && !extra.retirement) extra = { ...extra, retirement: { income: amount, real: w.indexed ?? true } }
+  const { retirement, ...rest } = extra
+  const w = { ...s.withdrawal, enabled: true, startYear: 1, endYear: null, strategy: 'initialPct' as const, rate: 4, indexed: true, ...o }
+  if (o.amount != null && o.amountReal == null) w.amountReal = w.indexed
+  const goal = retirement ?? (o.amount != null ? { income: o.amount, real: w.indexed } : s.retirement)
   return {
     ...s,
     initial: 6_000_000,
@@ -30,8 +39,9 @@ const retiree = (o: Partial<Scenario['withdrawal']> & { amount?: number } = {}, 
     annualReturn: 5,
     inflation: 2.5,
     inflationEnabled: true,
-    withdrawal: { ...s.withdrawal, enabled: true, startYear: 1, endYear: null, strategy: 'initialPct', rate: 4, indexed: true, ...w },
-    ...extra,
+    withdrawal: w,
+    retirement: { enabled: true, ...goal },
+    ...rest,
   }
 }
 
@@ -177,10 +187,11 @@ describe('persistence', () => {
     const s = retiree({ strategy: 'guardrails', rate: 4.5, maxIncrease: 6, maxDecrease: 3, floor: 15_000 }, { retirement: { income: 45_000, real: false } })
     const back = decodeShare(encodeShare(s))!
     expect(back.withdrawal).toMatchObject({ strategy: 'guardrails', rate: 4.5, maxIncrease: 6, maxDecrease: 3, floor: 15_000 })
-    expect(back.retirement).toEqual({ income: 45_000, real: false })
+    expect(back.retirement).toEqual({ enabled: true, income: 45_000, real: false })
     const legacy = sanitizeScenario({ withdrawal: { enabled: true, amount: 1000 } })!
     expect(legacy.withdrawal.strategy).toBe('fixed')
-    expect(legacy.retirement).toEqual({ income: 1000, real: true })
+    expect(legacy.withdrawal.amount).toBe(1000)
+    expect(legacy.retirement).toEqual({ enabled: true, income: 40_000, real: true })
   })
 })
 

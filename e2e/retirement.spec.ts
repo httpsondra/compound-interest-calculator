@@ -107,9 +107,9 @@ test('V4.1: a saved V4 plan migrates, and the two inflation questions are separa
   const b = page.locator('.breakdown')
   // Case A: 40 000 in today's money → ≈ 88 150 in year 33, and 2.5 % more in year 34.
   await expect(b.locator('.breakdown-v')).toContainText(/CZK\s88,150/)
-  await expect(b).toContainText(/Desired income in today’s money\s*CZK\s40,000 \/ month/)
+  await expect(b).toContainText(/Entered in today’s money\s*CZK\s40,000 \/ month/)
   await expect(b).toContainText(/year 34 plans CZK\s90,354/)
-  await expect(page.getByRole('textbox', { name: 'Desired monthly income', exact: true })).toHaveValue(/40,000/)
+  await expect(page.getByRole('textbox', { name: 'Planned monthly withdrawal', exact: true })).toHaveValue(/40,000/)
 
   // Case B/C: the same number at retirement is used as entered, then raised each year.
   await page.getByRole('radio', { name: 'At retirement', exact: true }).click()
@@ -135,4 +135,47 @@ test('V4.1: percentage strategies show the 4 % budget without a pre-retirement i
   await expect(b).toContainText(/CZK\s400,000 \/ year/)
   await expect(b.locator('.breakdown-v')).toContainText(/CZK\s33,333/)
   await expect(b).not.toContainText('Inflation until withdrawals')
+})
+
+test('income goal: a V4 plan keeps both values; copying is explicit and nothing syncs automatically', async ({ page }) => {
+  await seed(page, LEGACY_V4)
+  await page.goto('/?lang=en&seeded=1#/retirement')
+  const amount = page.getByRole('textbox', { name: 'Planned monthly withdrawal', exact: true })
+  const goal = page.getByRole('textbox', { name: 'Desired monthly income', exact: true })
+  const cmp = page.locator('.goal-cmp')
+  // Both V4 values survive: 40 000 withdrawn, 50 000 desired; compared in the same units.
+  await expect(amount).toHaveValue(/40,000/)
+  await expect(goal).toHaveValue(/50,000/)
+  await expect(cmp).toContainText(/Difference\s*−CZK\s10,000 \(−20%\)/)
+  await expect(cmp).toContainText('Monthly, in today’s money.')
+  await expect(page.locator('.fi-card')).toContainText(/CZK\s50,000 \/ month/)
+
+  // Explicit copy: goal → withdrawal.
+  await page.getByRole('button', { name: 'Use goal as withdrawal' }).click()
+  await expect(amount).toHaveValue(/50,000/)
+  await expect(cmp).toContainText(/Difference\s*±CZK\s0/)
+
+  // Editing the withdrawal never moves the goal.
+  await amount.click()
+  await amount.press('ControlOrMeta+a')
+  await amount.pressSequentially('45000')
+  await amount.press('Enter')
+  await expect(goal).toHaveValue(/50,000/)
+  await expect(cmp).toContainText(/−CZK\s5,000/)
+
+  // Without a goal, goal metrics disappear and the plan is judged by what it pays.
+  await page.getByRole('switch', { name: 'Compare with an income goal' }).click()
+  await expect(goal).toHaveCount(0)
+  await expect(page.locator('.no-goal')).toBeVisible()
+  await expect(page.locator('.retire .status-line').first()).toContainText('Every planned withdrawal is paid')
+  // Switching it back on restores the last goal unchanged.
+  await page.getByRole('button', { name: 'Set an income goal' }).click()
+  await expect(goal).toHaveValue(/50,000/)
+})
+
+test('new plans start without a goal', async ({ page }) => {
+  await page.getByRole('link', { name: 'Retirement', exact: true }).click()
+  await page.getByRole('button', { name: 'Plan withdrawals' }).click()
+  await expect(page.locator('.no-goal')).toBeVisible()
+  await expect(page.getByRole('switch', { name: 'Compare with an income goal' })).toHaveAttribute('aria-checked', 'false')
 })

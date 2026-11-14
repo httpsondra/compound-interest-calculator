@@ -236,10 +236,10 @@ export const helpCs: HelpContent = {
     limit: 'Počítá se se stálým výnosem. Na skutečných trzích může pár špatných let na začátku důchodu vyčerpat portfolio dřív — viz sekce Riziko.',
   }),
   withdrawalAmount: (c) => ({
-    title: 'Četnost výplat',
-    what: 'Jak často se peníze vyplácejí: měsíčně, čtvrtletně nebo jednou ročně.',
-    how: 'Částky se vždy zobrazují jako měsíční ekvivalent (roční součet ÷ 12), aby šly plány s různou četností férově porovnat.',
-    example: `${c.money(c.s.retirement.income)} měsíčně vyplácených čtvrtletně znamená ${c.money(perYear(c.s.retirement.income, 'monthly') / 4)} na jednu výplatu.`,
+    title: 'Plánovaný měsíční výběr',
+    what: 'Kolik plán skutečně vybírá z portfolia každý měsíc. Podle toho se počítá projekce.',
+    how: 'Je to vždy měsíční částka; při čtvrtletních nebo ročních výplatách je každá výplata 3× nebo 12× větší. Je oddělený od nepovinného cílového příjmu, který plán jen kontroluje.',
+    example: `${c.money(c.s.withdrawal.amount)} měsíčně vyplácených čtvrtletně znamená ${c.money(perYear(c.s.withdrawal.amount, 'monthly') / 4)} na jednu výplatu.`,
   }),
   withdrawalStart: (c) => ({
     title: 'Začátek výběrů',
@@ -292,7 +292,7 @@ export const helpCs: HelpContent = {
   },
   amountBasis: (c) => {
     const years = Math.max(0, c.s.withdrawal.startYear - 1)
-    const a = c.s.retirement.income
+    const a = c.s.withdrawal.amount
     const rate = c.s.inflationEnabled ? c.s.inflation : 0
     const grown = a / realOf(1, years, rate)
     return {
@@ -371,10 +371,11 @@ export const helpCs: HelpContent = {
   desiredIncome: (c) => {
     const p = plannedIncome(c.s, c.computed.result)
     return {
-      title: 'Požadovaný měsíční příjem',
-      what: c.s.withdrawal.strategy === 'fixed' ? 'Měsíční příjem, který chcete v důchodu vybírat.' : 'Příjem, který byste chtěli — výsledky ukážou, zda ho vaše procentní strategie skutečně dosáhne.',
-      how: c.s.retirement.real ? 'Zadáno v dnešních cenách: do začátku výběrů se navyšuje o inflaci, aby si zachovalo stejnou kupní sílu.' : 'Zadáno jako skutečná částka při začátku výběrů: použije se beze změny.',
-      example: p && c.s.withdrawal.strategy === 'fixed' ? `Zadali jste ${c.money(c.s.retirement.income)}; v roce ${p.startYear} plán vybírá ${c.money(p.firstMonthly)} měsíčně.` : undefined,
+      title: 'Cílový příjem (nepovinné)',
+      what: 'Měsíční příjem, který byste v důchodu chtěli. Nemění, kolik se vybírá — to určuje plánovaný výběr.',
+      how: 'Používá se pro kapitál potřebný k finanční nezávislosti, kontrolu „pokryje váš příjem“, pravděpodobnost v Monte Carlo a porovnání. „V dnešních cenách“ znamená, že si musí v každém roce důchodu zachovat kupní sílu; „Nominálně“ je pevná částka.',
+      example: p && c.s.retirement.enabled ? `Váš plán vyplácí v roce ${p.startYear} ${c.money(p.firstMonthly)} měsíčně; cíl je ${c.money(c.s.retirement.income)}${c.s.retirement.real && c.s.inflationEnabled ? ' v dnešních cenách' : ''}.` : undefined,
+      more: 'Cíl a výběr se nikdy automaticky nesynchronizují. Tlačítky „Použít plánovaný příjem jako cíl“ nebo „Použít cíl jako výběr“ jednu hodnotu zkopírujete do druhé.',
     }
   },
   retirementIncome: () => ({
@@ -394,7 +395,7 @@ export const helpCs: HelpContent = {
   }),
   incomeFunding: (c) => ({
     title: 'Pokryje plán váš příjem?',
-    what: `Ověřuje, zda každý celý rok důchodu vyplatí alespoň požadovaných ${c.money(incomeTarget(c.s).monthly)} měsíčně${incomeTarget(c.s).real ? ' v dnešních cenách' : ''}.`,
+    what: `Ověřuje, zda každý celý rok důchodu vyplatí alespoň požadovaných ${c.money(c.s.retirement.income)} měsíčně${incomeTarget(c.s)?.real ? ' v dnešních cenách' : ''}.`,
     how: 'Kladný zůstatek sám nestačí — strategie, která příjem sníží téměř na nulu, sice „přežije“, ale váš život neutáhne.',
   }),
   requiredCapital: (c) => ({
@@ -433,7 +434,7 @@ export const helpCs: HelpContent = {
   }),
   incomeProbability: (c) => ({
     title: 'Šance, že pokryjete příjem',
-    what: `Podíl simulovaných průběhů, ve kterých každý celý rok důchodu vyplatil alespoň ${c.money(incomeTarget(c.s).monthly)} měsíčně${incomeTarget(c.s).real ? ' v dnešních cenách' : ''}.`,
+    what: `Podíl simulovaných průběhů, ve kterých každý celý rok důchodu vyplatil alespoň ${c.money(c.s.retirement.income)} měsíčně${incomeTarget(c.s)?.real ? ' v dnešních cenách' : ''}.`,
     how: 'Je to přísnější — a poctivější — měřítko než „portfolio se nevyčerpalo“.',
     limit: 'Popisuje tento zjednodušený model, ne skutečné trhy.',
   }),

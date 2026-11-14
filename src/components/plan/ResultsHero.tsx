@@ -73,7 +73,7 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
             <HelpTip topic="todayMoney" label={t.results.real} />
           </p>
         )}
-        {incomeBased && check ? (
+        {incomeBased && check && target ? (
           <p className={`status-line ${check.funded ? 'is-pos' : 'is-warn'}`} role="status">
             <span className="status-dot" aria-hidden="true" />
             {check.funded
