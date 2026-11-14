@@ -203,6 +203,23 @@ export function inflationRate(s: Scenario): number {
   return s.inflationEnabled ? s.inflation / 100 : 0
 }
 
+/**
+ * The monthly income the "funds your income" checks compare against (deterministic and Monte Carlo).
+ * • real: the desired income must keep its purchasing power in every year (today's money).
+ * • A fixed amount entered in today's money that is NOT raised during retirement is, by the user's
+ *   own choice, a constant nominal amount from the first withdrawal year on: the target is that
+ *   nominal amount, so a plan that pays exactly what it planned is never reported as short.
+ */
+export function incomeTarget(s: Scenario): { monthly: number; real: boolean } {
+  const infl = inflationRate(s)
+  const w = s.withdrawal
+  if (w.strategy === 'fixed' && s.retirement.real && !w.indexed && infl !== 0) {
+    const yearsBefore = Math.floor(((w.startYear - 1) * 12) / 12)
+    return { monthly: s.retirement.income * Math.pow(1 + infl, yearsBefore), real: false }
+  }
+  return { monthly: s.retirement.income, real: s.retirement.real && infl !== 0 }
+}
+
 /** Months covered by one payment (monthly 1, quarterly 3, annual 12). */
 const monthsPerPayment = (f: Frequency) => 12 / PER_YEAR[f]
 /** Monthly income → amount per payment. Monthly is passed through untouched (exact). */

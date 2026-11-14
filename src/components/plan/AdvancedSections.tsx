@@ -167,7 +167,7 @@ export function AdvancedSections() {
           !w.enabled
             ? t.withdrawal.summaryOff
             : w.strategy === 'fixed'
-              ? `${f.money(s.retirement.income, s.currency, { compact: true })} ${t.per.monthly}${s.retirement.real && s.inflationEnabled ? ` · ${t.wd.basisToday.toLowerCase()}` : ''}`
+              ? `${f.money(s.retirement.income, s.currency, { compact: true })} ${t.per.monthly}`
               : `${f.pct(w.rate, 2)}${firstYear ? ` · ≈ ${f.money(firstYear.monthly, s.currency, { compact: true })} ${t.per.monthly}` : ''}`
         }
       >

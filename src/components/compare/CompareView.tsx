@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useI18n } from '../../i18n'
 import { computeSummary } from '../../model/compute'
-import { WITHDRAWAL_STRATEGIES, inflationRate, scaledAmount, totalMonths, uid, type Scenario } from '../../model/scenario'
+import { WITHDRAWAL_STRATEGIES, incomeTarget, inflationRate, scaledAmount, totalMonths, uid, type Scenario } from '../../model/scenario'
 import { incomeStats } from '../../model/retirement'
 import { evaluateIncome } from '../../engine/income'
 import { MAX_SCENARIOS } from '../../state/store'
@@ -168,7 +168,8 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
               const sum = summaries[i]
               const sc = scenarios[i]
               if (!sum || !sc.withdrawal.enabled) return { value: '—' }
-              const ev = evaluateIncome(sum.result.withdrawalYears, inflationRate(sc), sc.retirement.income, sc.retirement.real)
+              const goal = incomeTarget(sc)
+              const ev = evaluateIncome(sum.result.withdrawalYears, inflationRate(sc), goal.monthly, goal.real)
               return ev.funded ? { value: t.retire.yes, tone: 'pos' as const } : { value: t.retire.no, tone: 'warn' as const }
             },
           },

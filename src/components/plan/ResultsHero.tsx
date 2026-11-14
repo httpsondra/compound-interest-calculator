@@ -3,7 +3,7 @@ import { useI18n } from '../../i18n'
 import { toReal } from '../../engine/simulate'
 import { withdrawalSummary } from '../../model/compute'
 import { incomeCheck } from '../../model/retirement'
-import { inflationRate, totalMonths } from '../../model/scenario'
+import { incomeTarget, inflationRate, totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { HelpTip } from '../ui/HelpTip'
 
@@ -48,6 +48,7 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
     // judge them by the income they pay, not by whether the balance stays positive.
     const incomeBased = s.withdrawal.strategy === 'currentPct' || s.withdrawal.strategy === 'guardrails'
     const check = incomeBased ? incomeCheck(s, res) : null
+    const target = incomeTarget(s)
     return (
       <section className={`hero${stale ? ' is-stale' : ''}`} ref={heroRef} aria-labelledby="hero-h">
         <div className="hero-meta">
@@ -76,9 +77,9 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
           <p className={`status-line ${check.funded ? 'is-pos' : 'is-warn'}`} role="status">
             <span className="status-dot" aria-hidden="true" />
             {check.funded
-              ? fill(t.results.incomeOk, { income: money(s.retirement.income) })
-              : fill(t.results.incomeLow, { income: money(s.retirement.income), year: check.firstShortYear ?? '', lowest: money(check.lowest) })}
-            <span className="status-sub">{s.retirement.real ? t.results.real : t.results.nominal}</span>
+              ? fill(t.results.incomeOk, { income: money(target.monthly) })
+              : fill(t.results.incomeLow, { income: money(target.monthly), year: check.firstShortYear ?? '', lowest: money(check.lowest) })}
+            <span className="status-sub">{target.real ? t.results.real : t.results.nominal}</span>
             <HelpTip topic="incomeFunding" />
           </p>
         ) : (

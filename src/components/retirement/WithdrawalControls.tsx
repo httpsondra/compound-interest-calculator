@@ -108,7 +108,7 @@ function BasisToggle({ size = 'sm' }: { size?: 'xs' | 'sm' }) {
 
 /** Live explanation of the planned first-year income (all numbers from the engine). */
 export function IncomeBreakdown() {
-  const { t, f, fill } = useI18n()
+  const { t, f, fill, years, lang } = useI18n()
   const { scenario: s, computed } = useApp()
   const p = plannedIncome(s, computed.result)
   const money = (v: number) => f.money(v, s.currency)
@@ -125,18 +125,20 @@ export function IncomeBreakdown() {
   const where =
     p.age != null ? fill(t.wd.atStartAge, { year: p.startYear, age: p.age }) : fill(t.wd.atStart, { year: p.startYear })
   const inflOn = p.inflationPct !== 0
+  /** Deflation (negative inflation) flips every "rises / higher" sentence. */
+  const falling = p.inflationPct < 0
   const immediate = p.yearsBefore === 0
   const per = t.per.monthly
+  // Czech needs the locative after "po": po 1 roce, po 32 letech.
+  const yearsLoc = (n: number) => (lang === 'cs' ? `${f.num(n)} ${n === 1 ? 'roce' : 'letech'}` : years(n))
 
   const during = () => {
     if (w.strategy === 'currentPct') return t.wd.duringCurrent
+    if (w.strategy === 'guardrails') return !inflOn ? t.wd.duringGuardNoInflation : w.indexed ? t.wd.duringGuardIndexed : t.wd.duringGuardFlat
     if (!inflOn) return t.wd.duringNoInflation
-    if (w.strategy === 'guardrails') return w.indexed ? t.wd.duringGuardIndexed : t.wd.duringGuardFlat
-    return w.indexed && p.secondMonthly != null
-      ? fill(t.wd.duringIndexed, { rate: pct(p.inflationPct), year: p.startYear + 1, value: money(p.secondMonthly) })
-      : w.indexed
-        ? fill(t.wd.duringIndexedShort, { rate: pct(p.inflationPct) })
-        : fill(t.wd.duringFlat, { value: money(p.firstMonthly) })
+    if (!w.indexed) return fill(falling ? t.wd.duringFlatDown : t.wd.duringFlat, { value: money(p.firstMonthly) })
+    if (p.secondMonthly == null) return fill(t.wd.duringIndexedShort, { rate: pct(p.inflationPct) })
+    return fill(falling ? t.wd.duringIndexedDown : t.wd.duringIndexed, { rate: pct(p.inflationPct), year: p.startYear + 1, value: money(p.secondMonthly) })
   }
 
   let rows: { k: string; v: string }[]
@@ -146,20 +148,20 @@ export function IncomeBreakdown() {
     if (s.retirement.real) {
       rows = [
         { k: t.wd.rowDesiredToday, v: `${money(s.retirement.income)} ${per}` },
-        ...(inflOn && !immediate ? [{ k: t.wd.rowInflationBefore, v: fill(t.wd.rowInflationBeforeV, { rate: pct(p.inflationPct), years: p.yearsBefore }) }] : []),
+        ...(inflOn && !immediate ? [{ k: t.wd.rowInflationBefore, v: fill(t.wd.rowInflationBeforeV, { rate: pct(p.inflationPct), years: years(p.yearsBefore) }) }] : []),
       ]
       lead = where
       explain = immediate
         ? t.wd.explainImmediate
         : inflOn
-          ? fill(t.wd.explainToday, { rate: pct(p.inflationPct), value: money(p.firstMonthly), year: p.startYear, today: money(s.retirement.income) })
+          ? fill(falling ? t.wd.explainTodayDown : t.wd.explainToday, { rate: pct(p.inflationPct), value: money(p.firstMonthly), year: p.startYear, today: money(s.retirement.income) })
           : t.wd.explainNoInflation
     } else {
       rows = [{ k: t.wd.rowEnteredStart, v: `${money(s.retirement.income)} ${per}` }]
       lead = where
       explain =
         inflOn && !immediate
-          ? fill(t.wd.explainStart, { value: money(p.firstMonthly), today: money(p.firstMonthlyReal), years: p.yearsBefore })
+          ? fill(t.wd.explainStart, { rate: pct(p.inflationPct), today: money(p.firstMonthlyReal), years: years(p.yearsBefore), yearsLoc: yearsLoc(p.yearsBefore) })
           : null
     }
   } else {
@@ -233,7 +235,6 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
   const setIncome = (v: number) => update((x) => ({ ...x, retirement: { ...x.retirement, income: v } }), 'ret.income')
   const fixed = w.strategy === 'fixed'
   const startAge = s.startAge != null ? s.startAge + w.startYear - 1 : null
-  const inflOn = s.inflationEnabled && s.inflation !== 0
   const strategyHead = useId()
 
   return (
@@ -436,7 +437,7 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
               <>
                 <Switch
                   label={w.strategy === 'guardrails' ? t.wd.adjustGuard : t.wd.adjust}
-                  description={inflOn ? fill(t.wd.adjustRate, { rate: f.pct(s.inflation, 2) }) : t.wd.inflationOff}
+                  description={s.inflationEnabled ? fill(t.wd.adjustRate, { rate: f.pct(s.inflation, 2) }) : t.wd.inflationOff}
                   checked={w.indexed}
                   onChange={(v) => setW({ indexed: v })}
                 />

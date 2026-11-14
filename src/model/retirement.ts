@@ -4,6 +4,7 @@ import { analyzeGoal, extendPlan, solveMonotone, type GoalAnalysis } from '../en
 import { evaluateIncome } from '../engine/income'
 import {
   contributionVariable,
+  incomeTarget,
   inflationRate,
   scaledAmount,
   toPlan,
@@ -38,8 +39,13 @@ export interface IncomeYear extends WithdrawalYear {
 
 export function incomeYears(res: SimResult, inflation: number): IncomeYear[] {
   return res.withdrawalYears.map((y) => {
-    const monthly = y.paid / 12
-    return { ...y, monthly, monthlyRequested: y.requested / 12, monthlyReal: toReal(monthly, y.startMonth, inflation) }
+    // Full year: paid ÷ 12. A year cut short by the horizon shows its full-year rate (planned ÷ 12,
+    // scaled by the share actually paid) instead of a misleadingly low partial total ÷ 12.
+    const partial = y.months < 12
+    const share = y.requested > 0 ? Math.min(1, y.paid / y.requested) : 1
+    const monthly = partial ? (y.planned / 12) * share : y.paid / 12
+    const monthlyRequested = partial ? y.planned / 12 : y.requested / 12
+    return { ...y, monthly, monthlyRequested, monthlyReal: toReal(monthly, y.startMonth, inflation) }
   })
 }
 
@@ -234,7 +240,8 @@ export function fiAnalysis(s: Scenario, res: SimResult): FiAnalysis | null {
   }
 
   // Does the selected strategy (deterministically) pay at least the desired income? Same rule as Monte Carlo.
-  const ev = evaluateIncome(res.withdrawalYears, infl, s.retirement.income, s.retirement.real)
+  const target = incomeTarget(s)
+  const ev = evaluateIncome(res.withdrawalYears, infl, target.monthly, target.real)
   const firstShortYear = ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null
 
   return {
@@ -350,7 +357,8 @@ export { withdrawalPolicy, solveMonotone }
 /** Cheap desired-income check for the headline (no solving). */
 export function incomeCheck(s: Scenario, res: SimResult) {
   if (!s.withdrawal.enabled || !res.withdrawalYears.length) return null
-  const ev = evaluateIncome(res.withdrawalYears, inflationRate(s), s.retirement.income, s.retirement.real)
+  const goal = incomeTarget(s)
+  const ev = evaluateIncome(res.withdrawalYears, inflationRate(s), goal.monthly, goal.real)
   return { ...ev, firstShortYear: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null }
 }
 
@@ -391,9 +399,10 @@ export function plannedIncome(s: Scenario, res: SimResult | null): PlannedIncome
   const y0 = res.withdrawalYears[0]
   if (!y0 || y0.months <= 0) return null
   const infl = inflationRate(s)
-  const scale = 12 / y0.months
-  const firstAnnual = y0.requested * scale
+  // Full-year planned budget from the engine: a year cut short by the horizon is not extrapolated.
+  const firstAnnual = y0.planned
   const firstMonthly = firstAnnual / 12
+  const paidShare = y0.requested > 0 ? Math.min(1, y0.paid / y0.requested) : 1
   const y1 = res.withdrawalYears[1]
   const startYear = Math.floor(y0.startMonth / 12) + 1
   return {
@@ -405,11 +414,11 @@ export function plannedIncome(s: Scenario, res: SimResult | null): PlannedIncome
     inflationPct: infl * 100,
     firstMonthly,
     firstMonthlyReal: toReal(firstMonthly, y0.startMonth, infl),
-    secondMonthly: y1 ? (y1.requested * (12 / Math.max(1, y1.months))) / 12 : null,
+    secondMonthly: y1 ? y1.planned / 12 : null,
     firstAnnual,
     portfolioAtStart: y0.reviewBalance,
-    firstPaidMonthly: (y0.paid * scale) / 12,
-    firstUnfundedMonthly: Math.max(0, ((y0.requested - y0.paid) * scale) / 12),
+    firstPaidMonthly: firstMonthly * paidShare,
+    firstUnfundedMonthly: firstMonthly * (1 - paidShare),
     perPayment: firstAnnual / PER_YEAR[s.withdrawal.frequency],
   }
 }

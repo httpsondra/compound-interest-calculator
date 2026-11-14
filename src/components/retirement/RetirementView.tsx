@@ -12,7 +12,7 @@ import {
   type IncomeStats,
   type StressKind,
 } from '../../model/retirement'
-import { inflationRate, totalMonths, uid, type Scenario, type WithdrawalStrategy } from '../../model/scenario'
+import { incomeTarget, inflationRate, totalMonths, uid, type Scenario, type WithdrawalStrategy } from '../../model/scenario'
 import { MAX_SCENARIOS } from '../../state/store'
 import { useApp } from '../../state/context'
 import { XYChart, type Series } from '../chart/XYChart'
@@ -180,7 +180,8 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
   const { scenario: s, computed } = useApp()
   const money = (v: number) => f.money(v, s.currency)
   const year = s.withdrawal.startYear
-  const ev = computed.result ? evaluateIncome(computed.result.withdrawalYears, inflationRate(s), s.retirement.income, s.retirement.real) : null
+  const goal = incomeTarget(s)
+  const ev = computed.result ? evaluateIncome(computed.result.withdrawalYears, inflationRate(s), goal.monthly, goal.real) : null
   const dep = stats.depletedAtMonth
   const pick = (n: number, r: number) => (real ? r : n)
   return (
@@ -212,13 +213,13 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
         <p className={`status-line ${ev.funded ? 'is-pos' : 'is-warn'}`} role="status">
           <span className="status-dot" aria-hidden="true" />
           {ev.funded
-            ? fill(t.results.incomeOk, { income: money(s.retirement.income) })
+            ? fill(t.results.incomeOk, { income: money(goal.monthly) })
             : fill(t.results.incomeLow, {
-                income: money(s.retirement.income),
+                income: money(goal.monthly),
                 year: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : '',
                 lowest: money(ev.lowest),
               })}
-          <span className="status-sub">{s.retirement.real ? t.results.real : t.results.nominal}</span>
+          <span className="status-sub">{goal.real ? t.results.real : t.results.nominal}</span>
           <HelpTip topic="incomeFunding" />
         </p>
       )}
@@ -394,7 +395,8 @@ function PairedCharts({
     return out
   })
   const region = [{ start, end, label: t.withdrawal.title }]
-  const desired = s.retirement.real === real || !s.inflationEnabled ? { value: s.retirement.income, label: `${t.retire.desiredShort} ${f.money(s.retirement.income, s.currency, { compact: true })}` } : null
+  const goal = incomeTarget(s)
+  const desired = goal.real === real || !s.inflationEnabled ? { value: goal.monthly, label: `${t.retire.desiredShort} ${f.money(goal.monthly, s.currency, { compact: true })}` } : null
   const dep = results[0].res.totals.depletedAtMonth
   return (
     <div className="paired">
@@ -591,7 +593,8 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
             <tr>
               <th scope="row">{t.retire.fundsIncome}</th>
               {rows.map((r) => {
-                const ev = evaluateIncome(r.result.withdrawalYears, infl, s.retirement.income, s.retirement.real)
+                const goal = incomeTarget({ ...s, withdrawal: { ...s.withdrawal, strategy: r.strategy } })
+                const ev = evaluateIncome(r.result.withdrawalYears, infl, goal.monthly, goal.real)
                 return (
                   <td key={r.strategy}>
                     <span className={`ct-val ${ev.funded ? 'is-pos' : 'is-warn'}`}>{ev.funded ? t.retire.yes : t.retire.no}</span>

@@ -57,7 +57,7 @@ export const helpCs: HelpContent = {
     return {
       title: 'Roční navyšování',
       what: 'Jednou ročně automaticky zvýší všechny pravidelné vklady.',
-      how: '„O inflaci“ je zvyšuje o míru inflace, takže v dnešních penězích zůstávají stejné. „Žádné“ drží stále stejnou nominální částku, jejíž kupní síla pomalu klesá.',
+      how: '„O inflaci“ je zvyšuje o míru inflace, takže v dnešních cenách zůstávají stejné. „Žádné“ drží stále stejnou nominální částku, jejíž kupní síla pomalu klesá.',
       example: `${c.money(a)} měsíčně s navýšením o ${c.pct(g)} bude ve druhém roce ${c.money(nextYearContribution(a, g))} měsíčně.`,
     }
   },
@@ -125,10 +125,10 @@ export const helpCs: HelpContent = {
     how: 'Může být i po konci doby investice — plán se pak pro vyhodnocení cíle prodlouží.',
   }),
   goalReal: (c) => ({
-    title: 'Cíl v dnešních penězích',
+    title: 'Cíl v dnešních cenách',
     what: 'Porovnává cíl s hodnotami očištěnými o inflaci místo nominálních.',
-    example: `Při inflaci ${c.pct(infl(c))} odpovídá „${c.money(baseAmount(c.s.currency, 1_000_000))} v dnešních penězích“ za 20 let zhruba ${c.money(baseAmount(c.s.currency, 1_000_000) / realOf(1, 20, infl(c)))} nominálně.`,
-    more: 'Ceny v čase rostou, proto je cíl vyjádřený v dnešních penězích poctivějším popisem toho, co si za peníze skutečně koupíte.',
+    example: `Při inflaci ${c.pct(infl(c))} odpovídá „${c.money(baseAmount(c.s.currency, 1_000_000))} v dnešních cenách“ za 20 let zhruba ${c.money(baseAmount(c.s.currency, 1_000_000) / realOf(1, 20, infl(c)))} nominálně.`,
+    more: 'Ceny v čase rostou, proto je cíl vyjádřený v dnešních cenách poctivějším popisem toho, co si za peníze skutečně koupíte.',
   }),
   requiredContribution: (c) => {
     const g = c.computed.goal
@@ -160,7 +160,7 @@ export const helpCs: HelpContent = {
   inflation: (c) => ({
     title: 'Inflace',
     what: 'Obecný růst cen, kvůli kterému si za stejné peníze časem koupíte méně.',
-    how: 'Po zapnutí výsledky ukazují i hodnoty v dnešních penězích a vklady či výběry mohou s inflací růst.',
+    how: 'Po zapnutí výsledky ukazují i hodnoty v dnešních cenách a vklady či výběry mohou s inflací růst.',
     example: `Při inflaci ${c.pct(infl(c))} ročně bude mít ${c.money(baseAmount(c.s.currency))} za 20 let podobnou kupní sílu jako dnes ${c.money(realOf(baseAmount(c.s.currency), 20, infl(c)))}.`,
   }),
   inflationRate: (c) => {
@@ -170,14 +170,14 @@ export const helpCs: HelpContent = {
       what: 'Předpokládaný průměrný roční růst cen.',
       example:
         tot && c.s.inflationEnabled
-          ? `Při ${c.pct(c.s.inflation)} by vaše konečná hodnota ${c.money(tot.final)} odpovídala zhruba ${c.money(tot.finalReal)} v dnešních penězích.`
+          ? `Při ${c.pct(c.s.inflation)} by vaše konečná hodnota ${c.money(tot.final)} odpovídala zhruba ${c.money(tot.finalReal)} v dnešních cenách.`
           : undefined,
       limit: 'Inflace se rok od roku liší; kalkulačka používá jednu průměrnou sazbu.',
     }
   },
   nominalReal: () => ({
-    title: 'Nominálně vs. v dnešních penězích',
-    what: 'Nominální hodnoty jsou skutečné budoucí částky; hodnoty v dnešních penězích ukazují, co by za ně šlo koupit za dnešních cen.',
+    title: 'Nominálně vs. v dnešních cenách',
+    what: 'Nominální hodnoty jsou skutečné budoucí částky; hodnoty v dnešních cenách ukazují, co by za ně šlo koupit dnes.',
     how: 'Přepínáním uvidíte, jaká část růstu je „skutečná“ a jaká jen vyrovnává růst cen.',
   }),
 
@@ -292,12 +292,13 @@ export const helpCs: HelpContent = {
   amountBasis: (c) => {
     const years = Math.max(0, c.s.withdrawal.startYear - 1)
     const a = c.s.retirement.income
-    const grown = a / realOf(1, years, infl(c))
+    const rate = c.s.inflationEnabled ? c.s.inflation : 0
+    const grown = a / realOf(1, years, rate)
     return {
       title: 'V dnešních cenách, nebo při začátku výběrů?',
       what: 'Říká kalkulačce, co zadaná částka znamená.',
       how: '„V dnešních cenách“: kupní síla, kterou chcete mít — do začátku výběrů se navyšuje o inflaci. „Při začátku výběrů“: skutečná částka, kterou budete v prvním roce vybírat, použije se beze změny.',
-      example: years > 0 ? `${c.money(a)} v dnešních cenách odpovídá po ${years} letech inflace ${c.pct(infl(c))} zhruba ${c.money(grown)}. Zadáno „při začátku výběrů“ zůstane ${c.money(a)} — dnes by to odpovídalo zhruba ${c.money(realOf(a, years, infl(c)))}.` : undefined,
+      example: years > 0 && rate !== 0 ? `${c.money(a)} v dnešních cenách odpovídá po ${years} ${years === 1 ? 'roce' : 'letech'} inflace ${c.pct(rate)} zhruba ${c.money(grown)}. Zadáno „při začátku výběrů“ zůstane ${c.money(a)} — dnes by to odpovídalo zhruba ${c.money(realOf(a, years, rate))}.` : undefined,
       more: 'Ani jedna volba nemění, jak se příjem vyvíjí po začátku důchodu — o tom rozhoduje samostatný přepínač „Každoročně navyšovat rentu o inflaci“. Inflace se nikdy nezapočítá dvakrát.',
     }
   },
@@ -381,7 +382,7 @@ export const helpCs: HelpContent = {
     how: 'Pokud portfolio plánovaný výběr nezvládne, počítá se jen to, co bylo opravdu vyplaceno.',
   }),
   realIncome: () => ({
-    title: 'Příjem v dnešních penězích',
+    title: 'Příjem v dnešních cenách',
     what: 'Příjem v důchodu přepočtený na dnešní kupní sílu.',
     how: 'Pevný výběr navyšovaný o inflaci tu zůstává rovný. Výběr, který se nenavyšuje, pomalu klesá.',
   }),
@@ -392,7 +393,7 @@ export const helpCs: HelpContent = {
   }),
   incomeFunding: (c) => ({
     title: 'Pokryje plán váš příjem?',
-    what: `Ověřuje, zda každý celý rok důchodu vyplatí alespoň požadovaných ${c.money(c.s.retirement.income)} měsíčně${c.s.retirement.real ? ' v dnešních penězích' : ''}.`,
+    what: `Ověřuje, zda každý celý rok důchodu vyplatí alespoň požadovaných ${c.money(c.s.retirement.income)} měsíčně${c.s.retirement.real ? ' v dnešních cenách' : ''}.`,
     how: 'Kladný zůstatek sám nestačí — strategie, která příjem sníží téměř na nulu, sice „přežije“, ale váš život neutáhne.',
   }),
   requiredCapital: (c) => ({
@@ -405,7 +406,7 @@ export const helpCs: HelpContent = {
   financialIndependence: () => ({
     title: 'Finanční nezávislost',
     what: 'První rok, kdy vaše portfolio dosáhne kapitálu potřebného pro požadovaný příjem, pokud budete dál investovat podle plánu.',
-    how: 'Je-li příjem zadán v dnešních penězích, potřebný kapitál roste s inflací.',
+    how: 'Je-li příjem zadán v dnešních cenách, potřebný kapitál roste s inflací.',
     limit: 'Dosažení kapitálu ještě neznamená zaručený příjem — zda strategie obstojí, ukáže kontrola udržitelnosti a sekce Riziko.',
   }),
   retirementHorizon: () => ({
@@ -431,7 +432,7 @@ export const helpCs: HelpContent = {
   }),
   incomeProbability: (c) => ({
     title: 'Šance, že pokryjete příjem',
-    what: `Podíl simulovaných průběhů, ve kterých každý celý rok důchodu vyplatil alespoň ${c.money(c.s.retirement.income)} měsíčně${c.s.retirement.real ? ' v dnešních penězích' : ''}.`,
+    what: `Podíl simulovaných průběhů, ve kterých každý celý rok důchodu vyplatil alespoň ${c.money(c.s.retirement.income)} měsíčně${c.s.retirement.real ? ' v dnešních cenách' : ''}.`,
     how: 'Je to přísnější — a poctivější — měřítko než „portfolio se nevyčerpalo“.',
     limit: 'Popisuje tento zjednodušený model, ne skutečné trhy.',
   }),
@@ -462,7 +463,7 @@ export const helpCs: HelpContent = {
     how: 'Předpokládají stálý výnos, zadané poplatky a nezahrnují daně. Jak nejisté jsou skutečné výsledky, ukazuje sekce Riziko.',
   }),
   todayMoney: (c) => ({
-    title: 'V dnešních penězích',
+    title: 'V dnešních cenách',
     what: 'Budoucí částka přepočtená na dnešní kupní sílu podle zadané inflace.',
     example: c.computed.result ? `Za ${c.money(c.computed.result.totals.final)} na konci si koupíte zhruba tolik jako dnes za ${c.money(c.computed.result.totals.finalReal)}.` : undefined,
   }),
@@ -512,7 +513,7 @@ export const helpCs: HelpContent = {
   chart: () => ({
     title: 'Vývoj v čase',
     what: 'Modrá plocha je hodnota portfolia, písková čára peníze, které jste vložili. Rozdíl mezi nimi je zhodnocení.',
-    how: 'Přesné hodnoty zobrazíte najetím, klepnutím nebo šipkami. „Dnešní peníze“ ukazují hodnotu očištěnou o inflaci a nominální hodnotu přerušovaně.',
+    how: 'Přesné hodnoty zobrazíte najetím, klepnutím nebo šipkami. „Dnešní ceny“ ukazují hodnotu očištěnou o inflaci a nominální hodnotu přerušovaně.',
   }),
   milestones: () => ({
     title: 'Milníky',

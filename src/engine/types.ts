@@ -186,6 +186,8 @@ export interface WithdrawalYear {
   requested: number
   /** Withdrawals actually paid in this year (nominal). */
   paid: number
+  /** Planned budget for a FULL withdrawal year (nominal), even when the year is cut short by the horizon. */
+  planned: number
   /** Guardrails: rate × portfolio before limits; otherwise equal to `requested` budget. */
   target: number
   /** Guardrails: which limit changed the target, if any. */

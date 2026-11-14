@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useI18n } from '../../i18n'
 import { evaluateIncome } from '../../engine/income'
 import { incomeStats } from '../../model/retirement'
-import { inflationRate } from '../../model/scenario'
+import { incomeTarget, inflationRate } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { HelpTip } from '../ui/HelpTip'
 import { Icon } from '../ui/Icon'
@@ -17,7 +17,8 @@ export function RetirementSummary({ onOpen }: { onOpen: () => void }) {
   if (!stats || !res) return null
   const real = s.retirement.real && s.inflationEnabled
   const money = (v: number) => f.money(v, s.currency)
-  const ev = evaluateIncome(res.withdrawalYears, infl, s.retirement.income, s.retirement.real)
+  const goal = incomeTarget(s)
+  const ev = evaluateIncome(res.withdrawalYears, infl, goal.monthly, goal.real)
   return (
     <section className="card ret-summary" aria-labelledby="ret-sum-h">
       <header className="card-head">

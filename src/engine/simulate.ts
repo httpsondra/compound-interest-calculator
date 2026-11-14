@@ -137,6 +137,18 @@ export function validatePlan(plan: PlanInput): string | null {
   return null
 }
 
+/**
+ * Fixed withdrawal per payment in withdrawal year k: grown to the first withdrawal year by
+ * `preIndexRate` (before retirement), then by `indexRate` once per withdrawal year (during
+ * retirement) — never both for the same year. One power when both rates agree, so V4 plans
+ * (pre = during) stay bit-identical.
+ */
+export function fixedPayment(w: NonNullable<PlanInput['withdrawal']>, k: number): number {
+  const preYears = Math.floor(w.startMonth / 12)
+  if (w.preIndexRate == null || w.preIndexRate === w.indexRate) return w.amount * Math.pow(1 + w.indexRate, preYears + k)
+  return w.amount * Math.pow(1 + w.preIndexRate, preYears) * Math.pow(1 + w.indexRate, k)
+}
+
 export function buildEvents(plan: PlanInput): CashEvent[][] {
   const N = plan.horizonMonths
   const byMonth: CashEvent[][] = Array.from({ length: N }, () => [])
@@ -158,9 +170,6 @@ export function buildEvents(plan: PlanInput): CashEvent[][] {
     byMonth[month].push({ month, tau: 0, kind: 0, amount: l.amount })
   }
   const dynamic = !!w && !!w.policy && w.policy.kind !== 'fixed'
-  const preYears = w ? Math.floor(w.startMonth / 12) : 0
-  const samePre = !w || w.preIndexRate == null || w.preIndexRate === w.indexRate
-  const preFactor = w ? Math.pow(1 + (w.preIndexRate ?? w.indexRate), preYears) : 1
   if (w && (w.amount > 0 || dynamic)) {
     for (const t of streamEventTimes(w.startMonth, w.endMonth, w.frequency, w.timing, N)) {
       const { month, tau } = locate(t, w.timing)
@@ -168,14 +177,7 @@ export function buildEvents(plan: PlanInput): CashEvent[][] {
       // Withdrawal year: a payment exactly at the end of a year belongs to that year.
       const rel = (t - w.startMonth) / 12
       const wYear = w.timing === 'start' ? Math.floor(rel + EPS) : Math.max(0, Math.ceil(rel - EPS) - 1)
-      // Fixed amounts: grown to the first withdrawal year by `preIndexRate` (before retirement),
-      // then by `indexRate` once per withdrawal year (during retirement). Never both for the same year.
-      // One power when both rates agree, so V4 plans (pre = during) stay bit-identical.
-      const amount = dynamic
-        ? 0
-        : samePre
-          ? w.amount * Math.pow(1 + w.indexRate, preYears + wYear)
-          : w.amount * preFactor * Math.pow(1 + w.indexRate, wYear)
+      const amount = dynamic ? 0 : fixedPayment(w, wYear)
       byMonth[month].push({ month, tau, kind: 1, amount, wYear, dynamic })
     }
   }
@@ -294,6 +296,7 @@ export function simulate(plan: PlanInput, options: SimulateOptions = {}): SimRes
       reviewBalance: B,
       requested: 0,
       paid: 0,
+      planned: policy.kind === 'fixed' ? (w.amount > 0 ? fixedPayment(w, k) * perYear : 0) : budget,
       target,
       limit,
     }

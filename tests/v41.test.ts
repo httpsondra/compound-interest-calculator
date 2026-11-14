@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
 import { simulate, toReal } from '../src/engine/simulate'
 import { defaultScenario, toPlan, type Scenario } from '../src/model/scenario'
-import { plannedIncome } from '../src/model/retirement'
+import { fiAnalysis, incomeCheck, incomeStats, plannedIncome } from '../src/model/retirement'
+import { runMonteCarlo } from '../src/engine/montecarlo'
+import { incomeTarget } from '../src/model/scenario'
 import { decodeShare, encodeShare, sanitizeScenario } from '../src/model/serialize'
 import { buildPreset } from '../src/model/presets'
 import { createFormatter } from '../src/lib/format'
@@ -207,6 +209,57 @@ describe('V4.1 edge cases', () => {
   })
 })
 
+describe('V4.1 review fixes', () => {
+  it('every combination of a well-funded fixed plan funds its own income (deterministic, FI, Monte Carlo)', () => {
+    for (const real of [true, false]) for (const indexed of [true, false]) {
+      const s = plan({ real, indexed, initial: 1e9 })
+      const r = run(s)
+      expect(r.totals.depletedAtMonth).toBeNull()
+      expect(incomeCheck(s, r)!.funded).toBe(true)
+      expect(fiAnalysis(s, r)!.sustain.meets).toBe(true)
+      const t = incomeTarget(s)
+      const mc = runMonteCarlo({ plan: toPlan(s), volatility: 0, simulations: 3, seed: 1, income: t })
+      expect(mc.incomeProbability).toBe(1)
+    }
+  })
+  it('today’s money + not raised: the target is the constant nominal amount from the start year', () => {
+    const t = incomeTarget(plan({ real: true, indexed: false }))
+    expect(t.real).toBe(false)
+    expect(t.monthly).toBeCloseTo(40_000 * Math.pow(1.025, 32), 6)
+    // …and an underfunded plan is still reported as short.
+    const poor = plan({ real: true, indexed: false, initial: 0 })
+    poor.constant = { amount: 0, frequency: 'monthly' }
+    expect(incomeCheck(poor, run(poor))!.funded).toBe(false)
+  })
+  it('percentage strategies keep a constant real target', () => {
+    const s = { ...plan({ real: true, indexed: false }), withdrawal: { ...plan().withdrawal, strategy: 'initialPct' as const, indexed: false } }
+    expect(incomeTarget(s)).toEqual({ monthly: 40_000, real: true })
+  })
+  it.each([
+    ['monthly', 'start'], ['quarterly', 'start'], ['annual', 'start'],
+    ['monthly', 'end'], ['quarterly', 'end'], ['annual', 'end'],
+  ] as const)('a partial first year (%s, %s) shows the full-year rate, not an extrapolation', (frequency, timing) => {
+    for (const extra of [1, 4, 7]) {
+      const s = { ...plan({ real: false, indexed: false, frequency, initial: 1e8 }), timing, horizonYears: 32, horizonMonths: extra }
+      const r = run(s)
+      const p = plannedIncome(s, r)!
+      expect(p.firstMonthly).toBeCloseTo(40_000, 6)
+      expect(p.perPayment).toBeCloseTo(40_000 * (frequency === 'monthly' ? 1 : frequency === 'quarterly' ? 3 : 12), 6)
+      expect(p.firstUnfundedMonthly).toBeCloseTo(0, 6)
+      expect(incomeStats(r, 0.025)!.initial).toBeCloseTo(40_000, 6)
+    }
+  })
+  it('the engine reports the full-year planned budget for every strategy', () => {
+    const s = { ...plan({ real: false, indexed: true, initial: 1e8 }), horizonYears: 33, horizonMonths: 3 }
+    const r = run(s)
+    expect(r.withdrawalYears[0].planned).toBeCloseTo(12 * 40_000, 6)
+    expect(r.withdrawalYears[1].planned).toBeCloseTo(12 * 41_000, 6)
+    expect(r.withdrawalYears[1].months).toBe(3)
+    const pct = run({ ...s, withdrawal: { ...s.withdrawal, strategy: 'initialPct', rate: 4 } })
+    expect(pct.withdrawalYears[0].planned).toBeCloseTo(0.04 * pct.withdrawalYears[0].reviewBalance, 6)
+  })
+})
+
 /* ---------- Case F: backward compatibility with saved V4 plans ---------- */
 
 type V4 = v4s.Scenario
@@ -297,7 +350,12 @@ function expectSame(old: V4, migrated: Scenario) {
   const b = simulate(toPlan(migrated))
   const w = old.withdrawal
   const exact = !w.enabled || w.strategy !== 'fixed' || w.frequency === 'monthly'
-  const pick = (r: typeof a) => ({ balances: r.balances, withdrawalYears: r.withdrawalYears, totals: r.totals })
+  // V4.1 adds `planned` (full-year budget) to each withdrawal year; every V4 field must match.
+  const pick = (r: typeof a) => ({
+    balances: r.balances,
+    withdrawalYears: r.withdrawalYears.map(({ index, startMonth, months, reviewBalance, requested, paid, target, limit }) => ({ index, startMonth, months, reviewBalance, requested, paid, target, limit })),
+    totals: r.totals,
+  })
   if (exact) expect(pick(b)).toEqual(pick(a))
   else deepClose(pick(a), pick(b), 1e-12)
 }

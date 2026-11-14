@@ -292,12 +292,14 @@ export const helpEn: HelpContent = {
   amountBasis: (c) => {
     const years = Math.max(0, c.s.withdrawal.startYear - 1)
     const a = c.s.retirement.income
-    const grown = a / realOf(1, years, infl(c))
+    // The user's own numbers, so the user's own inflation (no 2.5 % fallback here).
+    const rate = c.s.inflationEnabled ? c.s.inflation : 0
+    const grown = a / realOf(1, years, rate)
     return {
       title: 'In today’s money or at retirement?',
       what: 'Tells the calculator what the amount you typed means.',
       how: '“In today’s money”: the purchasing power you want — it is raised with inflation until withdrawals start. “At retirement”: the actual amount you will withdraw in the first year, used as it is.',
-      example: years > 0 ? `${c.money(a)} in today’s money becomes about ${c.money(grown)} after ${years} years of ${c.pct(infl(c))} inflation. Entered “at retirement”, it stays ${c.money(a)} — worth about ${c.money(realOf(a, years, infl(c)))} today.` : undefined,
+      example: years > 0 && rate !== 0 ? `${c.money(a)} in today’s money becomes about ${c.money(grown)} after ${years} ${years === 1 ? 'year' : 'years'} of ${c.pct(rate)} inflation. Entered “at retirement”, it stays ${c.money(a)} — worth about ${c.money(realOf(a, years, rate))} today.` : undefined,
       more: 'Neither choice changes how income develops after retirement starts — that is the separate switch “Increase income with inflation every year”. Inflation is never applied twice.',
     }
   },
