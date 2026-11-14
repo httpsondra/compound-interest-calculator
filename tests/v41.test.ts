@@ -238,16 +238,48 @@ describe('V4.1 review fixes', () => {
   it.each([
     ['monthly', 'start'], ['quarterly', 'start'], ['annual', 'start'],
     ['monthly', 'end'], ['quarterly', 'end'], ['annual', 'end'],
-  ] as const)('a partial first year (%s, %s) shows the full-year rate, not an extrapolation', (frequency, timing) => {
-    for (const extra of [1, 4, 7]) {
+  ] as const)('a partial withdrawal phase (%s, %s) is judged at its full-year rate everywhere', (frequency, timing) => {
+    for (const extra of [1, 4, 5, 7]) {
       const s = { ...plan({ real: false, indexed: false, frequency, initial: 1e8 }), timing, horizonYears: 32, horizonMonths: extra }
       const r = run(s)
+      const y0 = r.withdrawalYears[0]
       const p = plannedIncome(s, r)!
       expect(p.firstMonthly).toBeCloseTo(40_000, 6)
       expect(p.perPayment).toBeCloseTo(40_000 * (frequency === 'monthly' ? 1 : frequency === 'quarterly' ? 3 : 12), 6)
       expect(p.firstUnfundedMonthly).toBeCloseTo(0, 6)
-      expect(incomeStats(r, 0.025)!.initial).toBeCloseTo(40_000, 6)
+      const t = incomeTarget(s)
+      const mc = runMonteCarlo({ plan: toPlan(s), volatility: 0, simulations: 2, seed: 1, income: t })
+      if (y0.requested > 0) {
+        // A payment falls inside the horizon: everything agrees on 40 000 a month, funded.
+        expect(incomeStats(r, 0.025)!.initial).toBeCloseTo(40_000, 6)
+        expect(incomeCheck(s, r)!.funded).toBe(true)
+        expect(incomeCheck(s, r)!.lowest).toBeCloseTo(40_000, 6)
+        expect(fiAnalysis(s, r)!.sustain.meets).toBe(true)
+        expect(mc.incomeProbability).toBe(1)
+      } else {
+        // Nothing is paid inside the horizon: no income is shown and nothing counts as funded.
+        expect(incomeStats(r, 0.025)).toBeNull()
+        expect(incomeCheck(s, r)!.funded).toBe(false)
+        expect(mc.incomeProbability).toBe(0)
+      }
     }
+  })
+  it('a partial phase never reports a percentage plan as funded above its true rate', () => {
+    const base = plan({ real: false, indexed: false, initial: 1e8, frequency: 'quarterly' })
+    const s: Scenario = { ...base, horizonYears: 32, horizonMonths: 5, timing: 'start', withdrawal: { ...base.withdrawal, strategy: 'currentPct', rate: 4 } }
+    const r = run(s)
+    const trueRate = r.withdrawalYears[0].planned / 12
+    const above = { ...s, retirement: { income: trueRate * 1.15, real: false } }
+    expect(incomeCheck(above, r)!.funded).toBe(false)
+    expect(runMonteCarlo({ plan: toPlan(above), volatility: 0, simulations: 2, seed: 1, income: incomeTarget(above) }).incomeProbability).toBe(0)
+    const below = { ...s, retirement: { income: trueRate * 0.99, real: false } }
+    expect(incomeCheck(below, r)!.funded).toBe(true)
+  })
+  it('the withdrawal summary budget uses the full-year rate', async () => {
+    const { firstYearBudget } = await import('../src/model/retirement')
+    const base = plan({ real: false, indexed: false, initial: 1e7, frequency: 'annual' })
+    const s: Scenario = { ...base, constant: { amount: 0, frequency: 'monthly' }, annualReturn: 0, inflation: 0, horizonYears: 2, horizonMonths: 5, timing: 'start', withdrawal: { ...base.withdrawal, strategy: 'currentPct', rate: 4, startYear: 3 } }
+    expect(firstYearBudget(run(s))!.monthly).toBeCloseTo(400_000 / 12, 6)
   })
   it('the engine reports the full-year planned budget for every strategy', () => {
     const s = { ...plan({ real: false, indexed: true, initial: 1e8 }), horizonYears: 33, horizonMonths: 3 }

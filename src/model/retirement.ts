@@ -1,7 +1,7 @@
 import { simulate, toReal } from '../engine/simulate'
 import { PER_YEAR, type PlanInput, type SimResult, type WithdrawalYear } from '../engine/types'
 import { analyzeGoal, extendPlan, solveMonotone, type GoalAnalysis } from '../engine/solvers'
-import { evaluateIncome } from '../engine/income'
+import { countedYears, evaluateIncome } from '../engine/income'
 import {
   contributionVariable,
   incomeTarget,
@@ -38,7 +38,8 @@ export interface IncomeYear extends WithdrawalYear {
 }
 
 export function incomeYears(res: SimResult, inflation: number): IncomeYear[] {
-  return res.withdrawalYears.map((y) => {
+  // A partial year with no payment inside the horizon is not part of the paid income.
+  return countedYears(res.withdrawalYears).map((y) => {
     // Full year: paid ÷ 12. A year cut short by the horizon shows its full-year rate (planned ÷ 12,
     // scaled by the share actually paid) instead of a misleadingly low partial total ÷ 12.
     const partial = y.months < 12
@@ -348,7 +349,7 @@ export function compareStrategies(s: Scenario): StrategyRow[] {
 export function firstYearBudget(res: SimResult | null): { annual: number; monthly: number; portfolio: number; startMonth: number } | null {
   const y = res?.withdrawalYears[0]
   if (!y) return null
-  const annual = y.months === 12 ? y.requested : (y.requested / y.months) * 12
+  const annual = y.planned
   return { annual, monthly: annual / 12, portfolio: y.reviewBalance, startMonth: y.startMonth }
 }
 

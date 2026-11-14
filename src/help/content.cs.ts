@@ -2,6 +2,7 @@ import { totalMonths } from '../model/scenario'
 import { baseAmount, depositFee, feeDrag, grow, nextYearContribution, perYear, realOf, timingDifference } from './examples'
 import type { HelpContent, HelpCtx } from './types'
 import { plannedIncome } from '../model/retirement'
+import { incomeTarget } from '../model/scenario'
 
 const PER: Record<string, string> = { weekly: 'týden', monthly: 'měsíc', quarterly: 'čtvrtletí', semiannual: 'pololetí', annual: 'rok' }
 const EVERY: Record<string, string> = { weekly: 'každý týden', monthly: 'každý měsíc', quarterly: 'každé čtvrtletí', semiannual: 'každé pololetí', annual: 'každý rok' }
@@ -304,14 +305,14 @@ export const helpCs: HelpContent = {
   },
   inflationBefore: (c) => ({
     title: 'Inflace před důchodem',
-    what: 'Mezi dneškem a začátkem výběrů ceny rostou.',
+    what: 'Mezi dneškem a začátkem výběrů se ceny mění podle zadané inflace.',
     how: 'Navyšuje se o ni jen částka zadaná v dnešních cenách. Procentní strategie ji nepotřebují: jejich částka už vychází z odhadované budoucí hodnoty portfolia.',
     example: `Při ${c.pct(infl(c))} ročně odpovídá ${c.money(baseAmount(c.s.currency, 40_000))} dnes zhruba ${c.money(baseAmount(c.s.currency, 40_000) / realOf(1, 32, infl(c)))} za 32 let.`,
   }),
   inflationDuring: (c) => ({
     title: 'Inflace během důchodu',
     what: 'Zda váš příjem po začátku výběrů každý rok roste.',
-    how: 'Zapnuto: příjem si zachová kupní sílu. Vypnuto: částka zůstává stejná a každý rok si za ni koupíte o něco méně. „% z aktuální hodnoty“ tento přepínač nemá — sleduje portfolio.',
+    how: 'Zapnuto: příjem si zachová kupní sílu. Vypnuto: částka zůstává stejná a při rostoucích cenách si za ni každý rok koupíte o něco méně. „% z aktuální hodnoty“ tento přepínač nemá — sleduje portfolio.',
     example: `${c.money(baseAmount(c.s.currency, 40_000))} → 2. rok: ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} → 3. rok: ${c.money(nextYearContribution(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)), infl(c)))} měsíčně.`,
   }),
   desiredVsActual: (c) => {
@@ -346,7 +347,7 @@ export const helpCs: HelpContent = {
   guardrails: () => ({
     title: 'Dynamické výběry s limity',
     what: 'Cílem je každý rok procento z aktuální hodnoty portfolia, ale výdaje se oproti loňsku smějí změnit jen o omezenou míru.',
-    how: 'Loňské výdaje se nejdřív navýší o inflaci; nový cíl se pak omezí třeba na +5 % nad a −2,5 % pod touto hodnotou. Volitelný minimální příjem se uplatní nakonec.',
+    how: 'Loňské výdaje se nejdřív upraví o inflaci; nový cíl se pak omezí třeba na +5 % nad a −2,5 % pod touto hodnotou. Volitelný minimální příjem se uplatní nakonec.',
     limit: 'Jde o jednoduché pravidlo se stropem a podlahou, nikoli o složitější pravidla Guytona a Klingera. Je to hypotetické pravidlo, ne prokázaně bezpečná strategie.',
     more: 'Omezení poklesu drží životní úroveň stabilnější ve špatných letech, omezení růstu ponechává rezervu po dobrých. Podobnou myšlenku používají například studie dynamických výdajů společnosti Vanguard.',
   }),
@@ -384,7 +385,7 @@ export const helpCs: HelpContent = {
   realIncome: () => ({
     title: 'Příjem v dnešních cenách',
     what: 'Příjem v důchodu přepočtený na dnešní kupní sílu.',
-    how: 'Pevný výběr navyšovaný o inflaci tu zůstává rovný. Výběr, který se nenavyšuje, pomalu klesá.',
+    how: 'Pevný výběr navyšovaný o inflaci tu zůstává rovný. Výběr, který se nenavyšuje, se při rostoucích cenách pomalu snižuje (při klesajících roste).',
   }),
   lowestIncome: () => ({
     title: 'Nejnižší měsíční příjem',
@@ -393,7 +394,7 @@ export const helpCs: HelpContent = {
   }),
   incomeFunding: (c) => ({
     title: 'Pokryje plán váš příjem?',
-    what: `Ověřuje, zda každý celý rok důchodu vyplatí alespoň požadovaných ${c.money(c.s.retirement.income)} měsíčně${c.s.retirement.real ? ' v dnešních cenách' : ''}.`,
+    what: `Ověřuje, zda každý celý rok důchodu vyplatí alespoň požadovaných ${c.money(incomeTarget(c.s).monthly)} měsíčně${incomeTarget(c.s).real ? ' v dnešních cenách' : ''}.`,
     how: 'Kladný zůstatek sám nestačí — strategie, která příjem sníží téměř na nulu, sice „přežije“, ale váš život neutáhne.',
   }),
   requiredCapital: (c) => ({
@@ -432,7 +433,7 @@ export const helpCs: HelpContent = {
   }),
   incomeProbability: (c) => ({
     title: 'Šance, že pokryjete příjem',
-    what: `Podíl simulovaných průběhů, ve kterých každý celý rok důchodu vyplatil alespoň ${c.money(c.s.retirement.income)} měsíčně${c.s.retirement.real ? ' v dnešních cenách' : ''}.`,
+    what: `Podíl simulovaných průběhů, ve kterých každý celý rok důchodu vyplatil alespoň ${c.money(incomeTarget(c.s).monthly)} měsíčně${incomeTarget(c.s).real ? ' v dnešních cenách' : ''}.`,
     how: 'Je to přísnější — a poctivější — měřítko než „portfolio se nevyčerpalo“.',
     limit: 'Popisuje tento zjednodušený model, ne skutečné trhy.',
   }),

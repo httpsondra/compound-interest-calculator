@@ -2,6 +2,7 @@ import { totalMonths } from '../model/scenario'
 import { baseAmount, depositFee, feeDrag, grow, nextYearContribution, perYear, realOf, timingDifference } from './examples'
 import type { HelpContent, HelpCtx } from './types'
 import { plannedIncome } from '../model/retirement'
+import { incomeTarget } from '../model/scenario'
 
 const PER: Record<string, string> = { weekly: 'week', monthly: 'month', quarterly: 'quarter', semiannual: 'half-year', annual: 'year' }
 const rate = (c: HelpCtx) => (c.s.annualReturn > 0 ? c.s.annualReturn : 7)
@@ -305,14 +306,14 @@ export const helpEn: HelpContent = {
   },
   inflationBefore: (c) => ({
     title: 'Inflation before retirement',
-    what: 'Prices rise between today and the start of withdrawals.',
+    what: 'Prices change by your inflation assumption between today and the start of withdrawals.',
     how: 'Only an amount entered in today’s money is raised for it. Percentage strategies don’t need it: their amount already comes from the projected future portfolio.',
     example: `At ${c.pct(infl(c))} a year, ${c.money(baseAmount(c.s.currency, 40_000))} today ≈ ${c.money(baseAmount(c.s.currency, 40_000) / realOf(1, 32, infl(c)))} in 32 years.`,
   }),
   inflationDuring: (c) => ({
     title: 'Inflation during retirement',
     what: 'Whether your income rises each year after withdrawals have started.',
-    how: 'On: income keeps its purchasing power. Off: the amount stays the same and buys a little less every year. “% of current portfolio” has no such switch — it follows the portfolio.',
+    how: 'On: income keeps its purchasing power. Off: the amount stays the same and, with rising prices, buys a little less every year. “% of current portfolio” has no such switch — it follows the portfolio.',
     example: `${c.money(baseAmount(c.s.currency, 40_000))} → year 2: ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} → year 3: ${c.money(nextYearContribution(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)), infl(c)))} a month.`,
   }),
   desiredVsActual: (c) => {
@@ -385,7 +386,7 @@ export const helpEn: HelpContent = {
   realIncome: () => ({
     title: 'Income in today’s money',
     what: 'Retirement income converted to today’s purchasing power.',
-    how: 'A fixed withdrawal raised with inflation stays flat here. A withdrawal that is not raised slowly falls.',
+    how: 'A fixed withdrawal raised with inflation stays flat here. A withdrawal that is not raised slowly falls when prices rise (and rises when they fall).',
   }),
   lowestIncome: () => ({
     title: 'Lowest monthly income',
@@ -394,7 +395,7 @@ export const helpEn: HelpContent = {
   }),
   incomeFunding: (c) => ({
     title: 'Does the plan fund your income?',
-    what: `Checks whether every full retirement year pays at least your desired ${c.money(c.s.retirement.income)} a month${c.s.retirement.real ? ' in today’s money' : ''}.`,
+    what: `Checks whether every full retirement year pays at least your desired ${c.money(incomeTarget(c.s).monthly)} a month${incomeTarget(c.s).real ? ' in today’s money' : ''}.`,
     how: 'A positive balance alone does not count — a strategy that cuts income to almost nothing can “survive” while not supporting your life.',
   }),
   requiredCapital: (c) => ({
@@ -433,7 +434,7 @@ export const helpEn: HelpContent = {
   }),
   incomeProbability: (c) => ({
     title: 'Chance of funding your income',
-    what: `The share of simulated paths in which every full retirement year paid at least ${c.money(c.s.retirement.income)} a month${c.s.retirement.real ? ' in today’s money' : ''}.`,
+    what: `The share of simulated paths in which every full retirement year paid at least ${c.money(incomeTarget(c.s).monthly)} a month${incomeTarget(c.s).real ? ' in today’s money' : ''}.`,
     how: 'This is stricter — and more honest — than “the portfolio did not run out”.',
     limit: 'It describes this simplified model, not real markets.',
   }),

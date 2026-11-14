@@ -137,7 +137,7 @@ export function IncomeBreakdown() {
     if (w.strategy === 'guardrails') return !inflOn ? t.wd.duringGuardNoInflation : w.indexed ? t.wd.duringGuardIndexed : t.wd.duringGuardFlat
     if (!inflOn) return t.wd.duringNoInflation
     if (!w.indexed) return fill(falling ? t.wd.duringFlatDown : t.wd.duringFlat, { value: money(p.firstMonthly) })
-    if (p.secondMonthly == null) return fill(t.wd.duringIndexedShort, { rate: pct(p.inflationPct) })
+    if (p.secondMonthly == null) return fill(falling ? t.wd.duringIndexedShortDown : t.wd.duringIndexedShort, { rate: pct(p.inflationPct) })
     return fill(falling ? t.wd.duringIndexedDown : t.wd.duringIndexed, { rate: pct(p.inflationPct), year: p.startYear + 1, value: money(p.secondMonthly) })
   }
 
