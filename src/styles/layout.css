@@ -1,0 +1,407 @@
+/* ═════════════ Aurora atmosphere ═════════════
+ * One fixed layer. Soft radial light only — no blur filters. The two
+ * blooms drift very slowly (transform only) when motion is allowed.
+ */
+.aurora-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 55%, var(--bg-deep) 100%);
+}
+
+.aurora-bg::before,
+.aurora-bg::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.aurora-bg::before {
+  width: 1100px;
+  height: 640px;
+  left: -260px;
+  top: -360px;
+  background: radial-gradient(closest-side, var(--aurora-1), transparent);
+}
+
+.aurora-bg::after {
+  width: 900px;
+  height: 520px;
+  right: -220px;
+  top: -300px;
+  background: radial-gradient(closest-side, var(--aurora-2), transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .aurora-bg::before {
+    animation: drift-a 38s var(--ease-out) infinite alternate;
+  }
+  .aurora-bg::after {
+    animation: drift-b 46s var(--ease-out) infinite alternate;
+  }
+}
+
+@keyframes drift-a {
+  to {
+    transform: translate3d(140px, 40px, 0) scale(1.06);
+  }
+}
+
+@keyframes drift-b {
+  to {
+    transform: translate3d(-120px, 60px, 0) scale(1.1);
+  }
+}
+
+/* ═════════════ Header ═════════════ */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  border-bottom: 1px solid var(--line);
+}
+
+.header-inner {
+  position: relative;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  height: var(--header-h);
+  padding: 0 var(--gutter);
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 640;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  border-radius: var(--r-sm);
+}
+
+.brand-name span {
+  color: var(--accent-text);
+}
+
+/* Centered pill navigation with a sliding indicator */
+.nav {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+  isolation: isolate;
+}
+
+.nav-thumb {
+  position: absolute;
+  z-index: -1;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--n));
+  transform: translateX(calc(var(--i, 0) * 100%));
+  border-radius: var(--r-pill);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-thumb);
+  transition: transform var(--t-slow) var(--ease-out);
+}
+
+.nav-link {
+  padding: 6px 18px;
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 560;
+  text-align: center;
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease-out);
+}
+
+.nav-link:hover {
+  color: var(--text);
+}
+
+.nav-link[aria-current='page'] {
+  color: var(--text);
+}
+
+.header-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lang-toggle {
+  display: flex;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.lang-toggle button {
+  min-width: 34px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  transition: color var(--t-fast), background-color var(--t-fast);
+}
+
+.lang-toggle button:hover {
+  color: var(--text);
+}
+
+.lang-toggle button[aria-pressed='true'] {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-thumb);
+}
+
+/* ═════════════ Page ═════════════ */
+.page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--s-8) var(--gutter) var(--s-16);
+  outline: none;
+}
+
+.footer {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--s-8) var(--gutter) calc(var(--s-16) + env(safe-area-inset-bottom));
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  display: grid;
+  gap: var(--s-2);
+}
+
+.footer p {
+  max-width: 82ch;
+  line-height: 1.6;
+}
+
+.footer-meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ═════════════ Plan layout ═════════════
+ * DOM order = mobile order: result → configuration → chart → details.
+ * Desktop: a sticky configuration sidebar; the projection flows on the right.
+ */
+.plan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'hero'
+    'config'
+    'chart'
+    'more';
+  gap: var(--s-8);
+}
+
+.plan-hero {
+  grid-area: hero;
+  min-width: 0;
+}
+.plan-config {
+  grid-area: config;
+  min-width: 0;
+}
+.plan-chart {
+  grid-area: chart;
+  min-width: 0;
+}
+.plan-more {
+  grid-area: more;
+  min-width: 0;
+  display: grid;
+  gap: var(--s-8);
+  align-content: start;
+}
+
+@media (min-width: 1080px) {
+  .plan {
+    grid-template-columns: var(--controls-w) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'config hero'
+      'config chart'
+      'config more';
+    column-gap: clamp(32px, 4vw, 64px);
+    row-gap: var(--s-8);
+  }
+  .plan-config {
+    align-self: start;
+    position: sticky;
+    top: calc(var(--header-h) + 20px);
+    max-height: calc(100dvh - var(--header-h) - 40px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+    border-radius: var(--r-xl);
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --controls-w: 408px;
+  }
+}
+
+.more-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-8) var(--s-10);
+}
+
+@media (min-width: 820px) {
+  .more-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ═════════════ View heads (Compare / Risk) ═════════════ */
+.view-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.view-title {
+  font-size: var(--fs-2xl);
+  font-weight: 620;
+  letter-spacing: -0.035em;
+  line-height: var(--lh-tight);
+}
+
+.view-sub {
+  margin-top: var(--s-3);
+  color: var(--text-2);
+  max-width: 62ch;
+}
+
+.view-actions {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.view-loading {
+  min-height: 60vh;
+}
+
+.compare,
+.risk {
+  display: grid;
+  gap: var(--s-8);
+}
+
+.compare-grid {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.risk-grid {
+  display: grid;
+  gap: var(--s-8);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1080px) {
+  .risk-grid {
+    grid-template-columns: 340px minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+/* ═════════════ Tablet & mobile ═════════════ */
+@media (max-width: 860px) {
+  .nav {
+    position: relative;
+    left: auto;
+    transform: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .header-inner {
+    gap: var(--s-3);
+  }
+  .hide-sm {
+    display: none;
+  }
+  .header-share {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .page {
+    padding-top: var(--s-6);
+  }
+  .view-title {
+    font-size: var(--fs-xl);
+  }
+  .plan {
+    gap: var(--s-6);
+  }
+}
+
+@media (max-width: 560px) {
+  /* Two compact rows: brand + tools, then full-width navigation. */
+  .header {
+    position: relative;
+  }
+  .header-inner {
+    height: auto;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    row-gap: 10px;
+  }
+  .nav {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .nav-link {
+    padding: 7px 8px;
+  }
+}
+
+@media (max-width: 380px) {
+  /* Logo mark only, so brand and tools share one row. */
+  .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+}

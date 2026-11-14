@@ -1,96 +1,41 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>InvestCalc</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<main class="app">
-<div class="topbar">
-<div class="brand">InvestCalc</div>
-
-<select id="languageSwitcher">
-<option value="en">English</option>
-<option value="cs">Čeština</option>
-</select>
-</div>
-
-<section class="hero">
-<div>
-<p class="eyebrow" data-i18n="eyebrow"></p>
-<h1 data-i18n="heroTitle"></h1>
-<p class="subtitle" data-i18n="heroSubtitle"></p>
-</div>
-
-<div class="hero-card">
-<span data-i18n="heroResult"></span>
-<strong id="heroValue">—</strong>
-</div>
-</section>
-
-<section class="panel">
-<div class="grid">
-<label class="field">
-<span data-i18n="initialDeposit"></span>
-<input id="initialDeposit" type="number" value="10000">
-</label>
-
-<label class="field highlight">
-<span data-i18n="monthlyDeposit"></span>
-<input id="baseMonthlyDeposit" type="number" value="2000">
-</label>
-
-<label class="field">
-<span data-i18n="annualReturn"></span>
-<input id="annualRate" type="number" value="7">
-</label>
-
-<label class="field">
-<span data-i18n="investmentLength"></span>
-<input id="totalYears" type="number" value="20">
-</label>
-</div>
-
-<div class="notice" data-i18n="notice"></div>
-
-<div class="section-header">
-<div>
-<h2 data-i18n="specialPeriods"></h2>
-<p data-i18n="specialPeriodsSub"></p>
-</div>
-
-<button class="secondary" id="addPeriodBtn" type="button">
-<span data-i18n="addPeriod"></span>
-</button>
-</div>
-
-<div id="periodsContainer"></div>
-
-<button class="primary" id="calculateBtn">
-<span data-i18n="calculate"></span>
-</button>
-</section>
-
-<section class="results hidden" id="results">
-<div class="result-card main">
-<span data-i18n="finalValue"></span>
-<strong id="finalValue">0</strong>
-</div>
-
-<div class="result-card">
-<span data-i18n="invested"></span>
-<strong id="totalInvested">0</strong>
-</div>
-
-<div class="result-card">
-<span data-i18n="profit"></span>
-<strong id="interestEarned">0</strong>
-</div>
-</section>
-</main>
-
-<script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>InvestCalc — compound interest &amp; investment planner</title>
+    <meta
+      name="description"
+      content="Plan long-term investing with an accurate compound interest calculator: changing contributions over time, goals, inflation, fees, withdrawals, scenario comparison and Monte Carlo. Czech &amp; English. Runs entirely in your browser."
+    />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f6fb" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#050b18" />
+    <link rel="canonical" href="https://investcalc.dev/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="InvestCalc" />
+    <meta property="og:title" content="InvestCalc — compound interest & investment planner" />
+    <meta property="og:description" content="Accurate compound interest projections with changing contributions, goals, inflation, fees and withdrawals." />
+    <meta property="og:url" content="https://investcalc.dev/" />
+    <meta property="og:image" content="https://investcalc.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Apply the stored theme before first paint to avoid a flash.
+      try {
+        var th = localStorage.getItem('investcalc.theme')
+        if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th)
+        var lg = new URLSearchParams(location.search).get('lang') || localStorage.getItem('investcalc.lang')
+        if (lg === 'cs' || lg === 'en') document.documentElement.lang = lg
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>InvestCalc needs JavaScript to run the calculator. / InvestCalc potřebuje ke spuštění JavaScript.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
