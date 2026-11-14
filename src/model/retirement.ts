@@ -445,6 +445,8 @@ export interface GoalComparison {
   firstShortYear: number | null
   lowest: number
   evaluatedYears: number
+  /** At least one full 12-month withdrawal year inside the plan. */
+  fullYears: boolean
 }
 
 /**
@@ -468,5 +470,6 @@ export function goalComparison(s: Scenario, res: SimResult | null): GoalComparis
     firstShortYear: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null,
     lowest: ev.lowest,
     evaluatedYears: ev.evaluatedYears,
+    fullYears: res.withdrawalYears.some((y) => y.months === 12),
   }
 }

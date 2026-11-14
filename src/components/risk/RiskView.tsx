@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../i18n'
 import { runMonteCarlo, type MonteCarloInput, type MonteCarloResult } from '../../engine/montecarlo'
-import { incomeTarget, totalMonths } from '../../model/scenario'
+import { incomeTarget, inflationRate, totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { XYChart, type Series } from '../chart/XYChart'
 import { Icon } from '../ui/Icon'
@@ -35,7 +35,8 @@ export default function RiskView() {
   const H = totalMonths(s)
   const target = incomeTarget(s)
   const incomeMonthly = target?.monthly ?? 0
-  const incomeReal = target?.real ?? false
+  // Without a goal Monte Carlo reports income in today's money (its default), so label it that way.
+  const incomeReal = target ? target.real : inflationRate(s) !== 0
   const goal = s.goal.enabled && s.goal.year * 12 <= H ? { target: s.goal.target, month: s.goal.year * 12, real: s.goal.real } : null
 
   useEffect(() => {

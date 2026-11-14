@@ -255,6 +255,24 @@ describe('V4.1 review fixes', () => {
     expect(nominal.planned).toBeCloseTo(40_000 * Math.pow(1.025, 32), 6)
     expect(nominal.diff).toBeCloseTo(40_000 * Math.pow(1.025, 32) - 80_000, 6)
   })
+  it('a goal copied from the planned income (rounded down) is reached, never “±0 but short”', () => {
+    for (const startYear of [2, 11, 21, 33]) for (const real of [true, false]) {
+      const base = plan({ startYear, initial: 1e9 })
+      const r = run(base)
+      const p = plannedIncome(base, r)!
+      const income = Math.floor((real ? p.firstMonthlyReal : p.firstMonthly) + 1e-9)
+      const s = { ...base, retirement: { enabled: true, income, real } }
+      const cmp = goalComparison(s, r)!
+      expect(cmp.diff).toBeGreaterThanOrEqual(0)
+      expect(cmp.funded).toBe(true)
+    }
+  })
+  it('goal comparison knows when no full retirement year exists', () => {
+    const s = { ...plan({ goal: { income: 1, real: false } }), horizonYears: 32, horizonMonths: 6 }
+    const cmp = goalComparison(s, run(s))!
+    expect(cmp.fullYears).toBe(false)
+    expect(goalComparison(plan({ goal: { income: 1, real: false } }), run(plan()))!.fullYears).toBe(true)
+  })
   it('the goal never changes cashflows', () => {
     const a = run(plan())
     const b = run(plan({ goal: { income: 1, real: false } }))

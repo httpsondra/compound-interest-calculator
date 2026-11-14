@@ -119,7 +119,8 @@ export function IncomeGoal() {
   const p = plannedIncome(s, computed.result)
   const cmp = goalComparison(s, computed.result)
   const setG = (patch: Partial<typeof g>, key?: string) => update((x) => ({ ...x, retirement: { ...x.retirement, ...patch } }), key)
-  const copyToGoal = () => p && setG({ income: Math.round(g.real && s.inflationEnabled ? p.firstMonthlyReal : p.firstMonthly) })
+  // Round DOWN, so the copied goal never sits above the planned income it came from.
+  const copyToGoal = () => p && setG({ income: Math.floor((g.real && s.inflationEnabled ? p.firstMonthlyReal : p.firstMonthly) + 1e-9) })
   const copyToAmount = () =>
     update((x) => ({ ...x, withdrawal: { ...x.withdrawal, amount: x.retirement.income, amountReal: x.retirement.real } }))
   const sign = (v: number) => (v > 0.5 ? '+' : v < -0.5 ? '−' : '±')
@@ -163,7 +164,7 @@ export function IncomeGoal() {
             <div className="goal-cmp" aria-live="polite">
               <dl className="goal-cmp-rows">
                 <div>
-                  <dt>{fill(t.wd.goalPlanned, { year: cmp.startYear })}</dt>
+                  <dt>{fill(cmp.real ? t.wd.goalPlannedReal : t.wd.goalPlannedNominal, { year: cmp.startYear })}</dt>
                   <dd>{money(cmp.planned)}</dd>
                 </div>
                 <div>
@@ -184,7 +185,9 @@ export function IncomeGoal() {
                 {cmp.evaluatedYears === 0
                   ? t.wd.goalNoYears
                   : cmp.funded
-                    ? t.wd.goalAllYears
+                    ? cmp.fullYears
+                      ? t.wd.goalAllYears
+                      : t.wd.goalPartialYear
                     : fill(t.wd.goalShortFrom, { year: cmp.firstShortYear ?? '', lowest: money(cmp.lowest) })}
               </p>
             </div>

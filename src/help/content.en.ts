@@ -1,7 +1,7 @@
 import { totalMonths } from '../model/scenario'
 import { baseAmount, depositFee, feeDrag, grow, nextYearContribution, perYear, realOf, timingDifference } from './examples'
 import type { HelpContent, HelpCtx } from './types'
-import { plannedIncome } from '../model/retirement'
+import { goalComparison, plannedIncome } from '../model/retirement'
 import { incomeTarget } from '../model/scenario'
 
 const PER: Record<string, string> = { weekly: 'week', monthly: 'month', quarterly: 'quarter', semiannual: 'half-year', annual: 'year' }
@@ -370,12 +370,12 @@ export const helpEn: HelpContent = {
     limit: 'A minimum does not mean the portfolio can afford it — in long bad markets it can empty the portfolio.',
   }),
   desiredIncome: (c) => {
-    const p = plannedIncome(c.s, c.computed.result)
+    const cmp = goalComparison(c.s, c.computed.result)
     return {
       title: 'Income goal (optional)',
       what: 'The monthly income you would like in retirement. It never changes what is withdrawn — the planned withdrawal does that.',
       how: 'It is used for the financial-independence capital, the “funds your income” checks, Monte Carlo income probability and comparisons. “In today’s money” means it must keep its purchasing power in every retirement year; “Nominal” means a fixed amount.',
-      example: p && c.s.retirement.enabled ? `Your plan pays ${c.money(p.firstMonthly)} a month in year ${p.startYear}; your goal is ${c.money(c.s.retirement.income)}${c.s.retirement.real && c.s.inflationEnabled ? ' in today’s money' : ''}.` : undefined,
+      example: cmp ? `In year ${cmp.startYear} your plan withdraws ${c.money(cmp.planned)} a month; your goal is ${c.money(cmp.goal)}${cmp.real ? ' (both in today’s money)' : ' (both nominal)'}.` : undefined,
       more: 'The goal and the withdrawal are never synchronised automatically. Use “Use planned income as goal” or “Use goal as withdrawal” to copy one into the other.',
     }
   },

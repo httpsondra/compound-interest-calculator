@@ -1,7 +1,7 @@
 import { totalMonths } from '../model/scenario'
 import { baseAmount, depositFee, feeDrag, grow, nextYearContribution, perYear, realOf, timingDifference } from './examples'
 import type { HelpContent, HelpCtx } from './types'
-import { plannedIncome } from '../model/retirement'
+import { goalComparison, plannedIncome } from '../model/retirement'
 import { incomeTarget } from '../model/scenario'
 
 const PER: Record<string, string> = { weekly: 'týden', monthly: 'měsíc', quarterly: 'čtvrtletí', semiannual: 'pololetí', annual: 'rok' }
@@ -369,12 +369,12 @@ export const helpCs: HelpContent = {
     limit: 'Minimum neznamená, že si ho portfolio může dovolit — při dlouhém poklesu trhů ho může vyčerpat.',
   }),
   desiredIncome: (c) => {
-    const p = plannedIncome(c.s, c.computed.result)
+    const cmp = goalComparison(c.s, c.computed.result)
     return {
       title: 'Cílový příjem (nepovinné)',
       what: 'Měsíční příjem, který byste v důchodu chtěli. Nemění, kolik se vybírá — to určuje plánovaný výběr.',
       how: 'Používá se pro kapitál potřebný k finanční nezávislosti, kontrolu „pokryje váš příjem“, pravděpodobnost v Monte Carlo a porovnání. „V dnešních cenách“ znamená, že si musí v každém roce důchodu zachovat kupní sílu; „Nominálně“ je pevná částka.',
-      example: p && c.s.retirement.enabled ? `Váš plán vyplácí v roce ${p.startYear} ${c.money(p.firstMonthly)} měsíčně; cíl je ${c.money(c.s.retirement.income)}${c.s.retirement.real && c.s.inflationEnabled ? ' v dnešních cenách' : ''}.` : undefined,
+      example: cmp ? `V roce ${cmp.startYear} plán počítá s výběrem ${c.money(cmp.planned)} měsíčně; cíl je ${c.money(cmp.goal)}${cmp.real ? ' (obojí v dnešních cenách)' : ' (obojí nominálně)'}.` : undefined,
       more: 'Cíl a výběr se nikdy automaticky nesynchronizují. Tlačítky „Použít plánovaný příjem jako cíl“ nebo „Použít cíl jako výběr“ jednu hodnotu zkopírujete do druhé.',
     }
   },

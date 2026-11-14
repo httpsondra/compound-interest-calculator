@@ -275,8 +275,17 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
 function NoGoalCard() {
   const { t } = useI18n()
   const { update } = useApp()
-  // Only switches the goal on, with its last value: the goal and the withdrawal are never synchronised.
-  const setGoal = () => update((x) => ({ ...x, retirement: { ...x.retirement, enabled: true } }))
+  // Only switches the goal on, with its last value (never copied from the withdrawal), then moves
+  // focus to the goal field so the user confirms or types it.
+  const setGoal = () => {
+    update((x) => ({ ...x, retirement: { ...x.retirement, enabled: true } }))
+    requestAnimationFrame(() => {
+      const el = document.getElementById('f-goal') as HTMLInputElement | null
+      el?.scrollIntoView({ block: 'center' })
+      el?.focus()
+      el?.select()
+    })
+  }
   return (
     <section className="card no-goal" aria-labelledby="no-goal-h">
       <div className="title-row">
@@ -426,7 +435,7 @@ function PairedCharts({
   })
   const region = [{ start, end, label: t.withdrawal.title }]
   const goal = incomeTarget(s)
-  const desired = goal && (goal.real === real || !s.inflationEnabled) ? { value: goal.monthly, label: `${t.retire.desiredShort} ${f.money(goal.monthly, s.currency, { compact: true })}` } : null
+  const desired = goal && (goal.real === real || inflationRate(s) === 0) ? { value: goal.monthly, label: `${t.retire.desiredShort} ${f.money(goal.monthly, s.currency, { compact: true })}` } : null
   const dep = results[0].res.totals.depletedAtMonth
   return (
     <div className="paired">
