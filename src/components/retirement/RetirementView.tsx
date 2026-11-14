@@ -19,7 +19,7 @@ import { XYChart, type Series } from '../chart/XYChart'
 import { HelpTip } from '../ui/HelpTip'
 import { Icon } from '../ui/Icon'
 import { Segmented } from '../ui/controls'
-import { DesiredIncome, WithdrawalControls } from './WithdrawalControls'
+import { WithdrawalControls } from './WithdrawalControls'
 import type { SimResult } from '../../engine/types'
 
 type Basis = 'nominal' | 'real'
@@ -79,7 +79,6 @@ export default function RetirementView({ onCompare }: { onCompare: () => void })
         <aside className="retire-config" aria-label={t.retire.settings}>
           <div className="config">
             <div className="config-body">
-              <DesiredIncome />
               <WithdrawalControls showEnable={false} />
             </div>
           </div>
@@ -202,6 +201,13 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
         {money(pick(stats.initial, stats.initialReal))}
         <span className="hero-unit"> {t.per.monthly}</span>
       </p>
+      {s.inflationEnabled && s.inflation !== 0 && stats.initial !== stats.initialReal && (
+        <p className="hero-real">
+          {real
+            ? fill(t.wd.heroNominal, { year, value: money(stats.initial) })
+            : fill(t.wd.heroReal, { value: money(stats.initialReal) })}
+        </p>
+      )}
       {ev && (
         <p className={`status-line ${ev.funded ? 'is-pos' : 'is-warn'}`} role="status">
           <span className="status-dot" aria-hidden="true" />
@@ -424,6 +430,7 @@ function PairedCharts({
         hoverIndex={hover}
         onHover={onHover}
       />
+      <p className="chart-note">{t.wd.chartNote}</p>
     </div>
   )
 }

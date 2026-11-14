@@ -73,7 +73,16 @@ export type WithdrawalPolicy =
   | { kind: 'fixed' }
   | { kind: 'initialPct'; rate: number }
   | { kind: 'currentPct'; rate: number }
-  | { kind: 'guardrails'; rate: number; maxIncrease: number; maxDecrease: number; floorAnnual: number }
+  | {
+      kind: 'guardrails'
+      rate: number
+      maxIncrease: number
+      maxDecrease: number
+      /** Annual minimum in plan-year-1 money; 0 = none. */
+      floorAnnual: number
+      /** Growth of the floor per plan year (today's-money floor → inflation). Defaults to `indexRate` (V4). */
+      floorIndexRate?: number
+    }
 
 export interface WithdrawalPlan {
   /** Defaults to { kind: 'fixed' }. */
@@ -86,8 +95,18 @@ export interface WithdrawalPlan {
   frequency: Frequency
   /** When true, contributions stop from `startMonth` onward. */
   stopContributions: boolean
-  /** Annual increase applied at each plan-year anniversary (e.g. inflation). */
+  /**
+   * Increase of the withdrawal at each WITHDRAWAL-year anniversary (inflation adjustment during
+   * retirement). For fixed withdrawals: payment = amount × (1 + preIndexRate)^⌊start / 12⌋ × (1 + indexRate)^k
+   * in withdrawal year k. Percentage policies use it as described on WithdrawalPolicy.
+   */
   indexRate: number
+  /**
+   * Fixed withdrawals only: growth of the entered amount BEFORE withdrawals start, per plan year
+   * (amount entered in today's money → inflation; amount entered as the nominal amount at retirement → 0).
+   * Defaults to `indexRate`, which reproduces V4 exactly whenever the start is on a plan-year boundary.
+   */
+  preIndexRate?: number
   timing: Timing
 }
 

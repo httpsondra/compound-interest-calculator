@@ -1,4 +1,4 @@
-import type { ContributionStream, Frequency, PlanInput, Timing, WithdrawalPolicy } from '../engine/types'
+import { PER_YEAR, type ContributionStream, type Frequency, type PlanInput, type Timing, type WithdrawalPolicy } from '../engine/types'
 import { MAX_HORIZON_MONTHS } from '../engine/simulate'
 
 export type Currency = 'CZK' | 'EUR' | 'USD'
@@ -35,7 +35,8 @@ export type WithdrawalStrategy = 'fixed' | 'initialPct' | 'currentPct' | 'guardr
 export const WITHDRAWAL_STRATEGIES: WithdrawalStrategy[] = ['fixed', 'initialPct', 'currentPct', 'guardrails']
 
 export interface Scenario {
-  v: 2
+  /** 3 = V4.1 withdrawal model (explicit amount basis). Older versions are migrated in serialize.ts. */
+  v: 3
   id: string
   name: string
   currency: Currency
@@ -64,8 +65,11 @@ export interface Scenario {
     startYear: number
     /** Inclusive last year, null = until the end of the plan. */
     endYear: number | null
-    amount: number
     frequency: Frequency
+    /**
+     * Raise income with inflation once a year DURING retirement (fixed amount, initial % and the
+     * inflation adjustment of dynamic spending). Independent of how the amount was entered.
+     */
     indexed: boolean
     stopContributions: boolean
     /** How the yearly withdrawal budget is set (see engine WithdrawalPolicy). */
@@ -75,14 +79,22 @@ export interface Scenario {
     /** Guardrails: maximum yearly increase / decrease of spending, in percent. */
     maxIncrease: number
     maxDecrease: number
-    /** Guardrails: optional minimum monthly income in plan-year-1 money (0 = none). */
+    /** Guardrails: optional minimum monthly income (0 = none). */
     floor: number
+    /** Guardrails: the minimum income is in today's money (rises with inflation every plan year). */
+    floorReal: boolean
   }
-  /** Financial-independence planning: the income the user wants from the portfolio. */
+  /**
+   * The monthly income the user wants in retirement. For the fixed-amount strategy this IS the
+   * planned withdrawal; for percentage strategies it is the target the results are checked against.
+   */
   retirement: {
     /** Desired monthly income. */
     income: number
-    /** Income expressed in today's purchasing power (true) or nominal money at retirement (false). */
+    /**
+     * How `income` was entered: true = today's purchasing power (grown with inflation until
+     * withdrawals begin), false = the nominal amount at the start of withdrawals.
+     */
     real: boolean
   }
   goal: { enabled: boolean; target: number; year: number; real: boolean }
@@ -108,7 +120,7 @@ export function scaledAmount(czk: number, currency: Currency): number {
 export function defaultScenario(currency: Currency = 'CZK', name = ''): Scenario {
   const s = (v: number) => scaledAmount(v, currency)
   return {
-    v: 2,
+    v: 3,
     id: uid('sc'),
     name,
     currency,
@@ -136,7 +148,6 @@ export function defaultScenario(currency: Currency = 'CZK', name = ''): Scenario
       enabled: false,
       startYear: 21,
       endYear: null,
-      amount: s(20_000),
       frequency: 'monthly',
       indexed: true,
       stopContributions: true,
@@ -145,6 +156,7 @@ export function defaultScenario(currency: Currency = 'CZK', name = ''): Scenario
       maxIncrease: 5,
       maxDecrease: 2.5,
       floor: 0,
+      floorReal: true,
     },
     retirement: { income: s(40_000), real: true },
     goal: { enabled: false, target: s(5_000_000), year: 30, real: false },
@@ -191,6 +203,13 @@ export function inflationRate(s: Scenario): number {
   return s.inflationEnabled ? s.inflation / 100 : 0
 }
 
+/** Months covered by one payment (monthly 1, quarterly 3, annual 12). */
+const monthsPerPayment = (f: Frequency) => 12 / PER_YEAR[f]
+/** Monthly income → amount per payment. Monthly is passed through untouched (exact). */
+export const monthlyToPayment = (monthly: number, f: Frequency) => (f === 'monthly' ? monthly : monthly * monthsPerPayment(f))
+/** Amount per payment → monthly equivalent. */
+export const paymentToMonthly = (payment: number, f: Frequency) => (f === 'monthly' ? payment : payment / monthsPerPayment(f))
+
 export function toPlan(s: Scenario): PlanInput {
   const H = Math.min(MAX_HORIZON_MONTHS, Math.max(1, totalMonths(s)))
   const infl = inflationRate(s)
@@ -212,10 +231,12 @@ export function toPlan(s: Scenario): PlanInput {
       ? {
           startMonth: (w.startYear - 1) * 12,
           endMonth: w.endYear == null ? H : w.endYear * 12,
-          amount: w.amount,
+          // Fixed strategy: the monthly income is the withdrawal; the engine wants it per payment.
+          amount: monthlyToPayment(s.retirement.income, w.frequency),
           frequency: w.frequency,
           stopContributions: w.stopContributions,
           indexRate: w.indexed ? infl : 0,
+          preIndexRate: s.retirement.real ? infl : 0,
           timing: s.timing,
           policy: withdrawalPolicy(s),
         }
@@ -232,7 +253,14 @@ export function withdrawalPolicy(s: Scenario): WithdrawalPolicy {
     case 'currentPct':
       return { kind: 'currentPct', rate }
     case 'guardrails':
-      return { kind: 'guardrails', rate, maxIncrease: w.maxIncrease / 100, maxDecrease: w.maxDecrease / 100, floorAnnual: w.floor * 12 }
+      return {
+        kind: 'guardrails',
+        rate,
+        maxIncrease: w.maxIncrease / 100,
+        maxDecrease: w.maxDecrease / 100,
+        floorAnnual: w.floor * 12,
+        floorIndexRate: w.floorReal ? inflationRate(s) : 0,
+      }
     default:
       return { kind: 'fixed' }
   }

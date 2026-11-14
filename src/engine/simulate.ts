@@ -127,6 +127,7 @@ export function validatePlan(plan: PlanInput): string | null {
   }
   for (const l of plan.lumpSums) if (!(l.amount >= 0) || !(l.month >= 0)) return 'lumps'
   if (plan.withdrawal && !(plan.withdrawal.amount >= 0)) return 'withdrawal'
+  if (plan.withdrawal && !(plan.withdrawal.indexRate > -1 && (plan.withdrawal.preIndexRate ?? 0) > -1)) return 'withdrawal'
   const pol = plan.withdrawal?.policy
   if (pol && pol.kind !== 'fixed') {
     if (!(pol.rate >= 0 && pol.rate <= 1)) return 'withdrawal'
@@ -157,6 +158,9 @@ export function buildEvents(plan: PlanInput): CashEvent[][] {
     byMonth[month].push({ month, tau: 0, kind: 0, amount: l.amount })
   }
   const dynamic = !!w && !!w.policy && w.policy.kind !== 'fixed'
+  const preYears = w ? Math.floor(w.startMonth / 12) : 0
+  const samePre = !w || w.preIndexRate == null || w.preIndexRate === w.indexRate
+  const preFactor = w ? Math.pow(1 + (w.preIndexRate ?? w.indexRate), preYears) : 1
   if (w && (w.amount > 0 || dynamic)) {
     for (const t of streamEventTimes(w.startMonth, w.endMonth, w.frequency, w.timing, N)) {
       const { month, tau } = locate(t, w.timing)
@@ -164,7 +168,14 @@ export function buildEvents(plan: PlanInput): CashEvent[][] {
       // Withdrawal year: a payment exactly at the end of a year belongs to that year.
       const rel = (t - w.startMonth) / 12
       const wYear = w.timing === 'start' ? Math.floor(rel + EPS) : Math.max(0, Math.ceil(rel - EPS) - 1)
-      const amount = dynamic ? 0 : w.amount * indexFactor(w.indexRate, month)
+      // Fixed amounts: grown to the first withdrawal year by `preIndexRate` (before retirement),
+      // then by `indexRate` once per withdrawal year (during retirement). Never both for the same year.
+      // One power when both rates agree, so V4 plans (pre = during) stay bit-identical.
+      const amount = dynamic
+        ? 0
+        : samePre
+          ? w.amount * Math.pow(1 + w.indexRate, preYears + wYear)
+          : w.amount * preFactor * Math.pow(1 + w.indexRate, wYear)
       byMonth[month].push({ month, tau, kind: 1, amount, wYear, dynamic })
     }
   }
@@ -268,7 +279,7 @@ export function simulate(plan: PlanInput, options: SimulateOptions = {}): SimRes
           if (target > hi + 1e-9) limit = 'increase'
           else if (target < lo - 1e-9) limit = 'decrease'
         }
-        const floor = policy.floorAnnual * indexFactor(w.indexRate, m)
+        const floor = policy.floorAnnual * indexFactor(policy.floorIndexRate ?? w.indexRate, m)
         if (floor > budget + 1e-9) {
           budget = floor
           limit = 'floor'

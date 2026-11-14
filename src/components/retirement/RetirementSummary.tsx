@@ -37,6 +37,9 @@ export function RetirementSummary({ onOpen }: { onOpen: () => void }) {
           <dt>{t.retire.initialIncome}</dt>
           <dd>
             {money(real ? stats.initialReal : stats.initial)} <span className="tile-unit">{t.per.monthly}</span>
+            {real && stats.initial !== stats.initialReal && (
+              <span className="tile-sub">{fill(t.wd.tileNominal, { value: money(stats.initial), year: s.withdrawal.startYear })}</span>
+            )}
           </dd>
         </div>
         <div className="tile">

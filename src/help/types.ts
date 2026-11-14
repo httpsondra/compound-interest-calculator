@@ -47,6 +47,11 @@ export const HELP_IDS = [
   'shortfall',
   // Retirement & financial independence
   'withdrawalStrategy',
+  'fixedWithdrawal',
+  'amountBasis',
+  'inflationBefore',
+  'inflationDuring',
+  'desiredVsActual',
   'rule4',
   'currentPct',
   'guardrails',

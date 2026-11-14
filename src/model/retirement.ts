@@ -166,7 +166,7 @@ function capitalForFixed(s: Scenario, annualAtStart: number, months: number): nu
     streams: [],
     lumpSums: [],
     fees: { ...p.fees, entryRate: 0, fixedPerDeposit: 0 },
-    withdrawal: { ...w, startMonth: 0, endMonth: Infinity, amount: annualAtStart / perYear, policy: { kind: 'fixed' } },
+    withdrawal: { ...w, startMonth: 0, endMonth: Infinity, amount: annualAtStart / perYear, preIndexRate: 0, policy: { kind: 'fixed' } },
   })
   // Find the smallest capital with no depletion: survival is monotone in capital.
   const ok = (c: number) => simulate(sub(c), { lean: true }).totals.depletedAtMonth === null
@@ -352,4 +352,64 @@ export function incomeCheck(s: Scenario, res: SimResult) {
   if (!s.withdrawal.enabled || !res.withdrawalYears.length) return null
   const ev = evaluateIncome(res.withdrawalYears, inflationRate(s), s.retirement.income, s.retirement.real)
   return { ...ev, firstShortYear: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null }
+}
+
+/* ───────── Planned income breakdown (withdrawal controls) ───────── */
+
+export interface PlannedIncome {
+  strategy: WithdrawalStrategy
+  startMonth: number
+  startYear: number
+  age: number | null
+  /** Whole plan years between today and the start of withdrawals. */
+  yearsBefore: number
+  /** Inflation in percent (0 when inflation is off). */
+  inflationPct: number
+  /** Planned (requested) monthly amount in the first withdrawal year, nominal. */
+  firstMonthly: number
+  /** The same in today's purchasing power. */
+  firstMonthlyReal: number
+  /** Planned monthly amount in the second withdrawal year (shows the in-retirement adjustment). */
+  secondMonthly: number | null
+  firstAnnual: number
+  /** Portfolio value at the first annual review (start of withdrawals). */
+  portfolioAtStart: number
+  /** Actually paid in the first withdrawal year, monthly equivalent. */
+  firstPaidMonthly: number
+  /** Planned but not paid in the first year, monthly equivalent. */
+  firstUnfundedMonthly: number
+  /** Amount of one payment at the selected frequency (first year). */
+  perPayment: number
+}
+
+/**
+ * Reads the planned first-year income from the engine's own withdrawal records. Monthly values
+ * are monthly equivalents (annual ÷ 12); a partial first year inside the horizon is pro-rated.
+ */
+export function plannedIncome(s: Scenario, res: SimResult | null): PlannedIncome | null {
+  if (!res || !s.withdrawal.enabled) return null
+  const y0 = res.withdrawalYears[0]
+  if (!y0 || y0.months <= 0) return null
+  const infl = inflationRate(s)
+  const scale = 12 / y0.months
+  const firstAnnual = y0.requested * scale
+  const firstMonthly = firstAnnual / 12
+  const y1 = res.withdrawalYears[1]
+  const startYear = Math.floor(y0.startMonth / 12) + 1
+  return {
+    strategy: s.withdrawal.strategy,
+    startMonth: y0.startMonth,
+    startYear,
+    age: s.startAge != null ? s.startAge + startYear - 1 : null,
+    yearsBefore: Math.floor(y0.startMonth / 12),
+    inflationPct: infl * 100,
+    firstMonthly,
+    firstMonthlyReal: toReal(firstMonthly, y0.startMonth, infl),
+    secondMonthly: y1 ? (y1.requested * (12 / Math.max(1, y1.months))) / 12 : null,
+    firstAnnual,
+    portfolioAtStart: y0.reviewBalance,
+    firstPaidMonthly: (y0.paid * scale) / 12,
+    firstUnfundedMonthly: Math.max(0, ((y0.requested - y0.paid) * scale) / 12),
+    perPayment: firstAnnual / PER_YEAR[s.withdrawal.frequency],
+  }
 }

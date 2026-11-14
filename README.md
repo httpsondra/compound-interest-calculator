@@ -41,7 +41,7 @@ Every number on screen comes from `simulate()`: the cards, chart, yearly table, 
   - Periods are contiguous segments, so overlaps are impossible by construction and a pause is an explicit segment.
   - A gap at the end, or periods beyond the horizon, raise a warning that offers a one-click fix.
   - Amounts are per occurrence at the chosen frequency.
-- **Indexation.** Contribution growth and inflation-linked withdrawals step up at every plan anniversary: amount × (1 + g)^(plan year − 1). "With inflation" uses g = π.
+- **Indexation.** Contribution growth steps up at every plan anniversary: amount × (1 + g)^(plan year − 1). "With inflation" uses g = π. Withdrawals are indexed per withdrawal year, see below.
 - **Inflation.** Real value = nominal ÷ (1 + π)^(months/12). Inflation is never applied twice: real values only deflate the nominal results.
 - **Withdrawals.** A withdrawal is paid only up to the available balance. The first month that cannot be paid in full is reported as depletion, and any shortfall is tracked. The sustainable withdrawal is found by bisection: the largest amount that never depletes before the horizon.
 - **Goals.**
@@ -56,17 +56,24 @@ Every number on screen comes from `simulate()`: the cards, chart, yearly table, 
 - **Precision.** Full float64 precision is kept internally, and values are rounded only for display. A float64 has about 15–16 significant digits, far beyond the money values involved (amounts are capped at 10¹³).
 - **Currency.** Switching the currency changes the unit label only. Nothing is converted at an exchange rate.
 
-## Retirement & withdrawal conventions (V4)
+## Retirement & withdrawal conventions (V4.1)
 
 All four strategies run inside the same `simulate()` engine (`WithdrawalPolicy` in `src/engine/types.ts`):
 
 | Strategy | Yearly budget |
 |---|---|
-| Fixed amount | `amount` per payment, raised once per plan year by inflation when indexing is on (unchanged from V3) |
+| Fixed amount | the desired monthly income I; first-year budget 12 · I · (1 + π)^(years before withdrawals) when entered in today's money, 12 · I when entered at retirement; × (1 + π) each later withdrawal year when “increase with inflation” is on |
 | Initial portfolio % ("4 % rule") | year 1 = rate × portfolio at the first review; later years = previous budget × (1 + inflation) — later portfolio values are ignored |
 | Current portfolio % | rate × portfolio at each annual review |
-| Dynamic (guardrails) | target = rate × portfolio; limited to `[prev × (1+π) × (1 − maxDecrease), prev × (1+π) × (1 + maxIncrease)]`, i.e. the limits apply **after** the inflation adjustment of last year's spending; an optional minimum income (year‑1 money, indexed only when indexing is on) is applied last and wins over the ceiling |
+| Dynamic (guardrails) | target = rate × portfolio; limited to `[prev × (1+π) × (1 − maxDecrease), prev × (1+π) × (1 + maxIncrease)]`, i.e. the limits apply **after** the inflation adjustment of last year's spending; an optional minimum income (in today's money unless migrated from a V4 plan without indexing) is applied last and wins over the ceiling |
 
+- **Two separate inflation questions (V4.1).**
+  - *How is the income entered?* “In today's money” raises it by inflation **before** withdrawals start (once per full plan year, `preIndexRate`); “At retirement” uses the number as entered.
+  - *Does it rise during retirement?* The switch raises it once per withdrawal year (`indexRate`). Both factors multiply, so inflation is never applied twice: 40 000 in today's money at 2.5 % starting in year 33 plans 40 000 · 1.025³² ≈ 88 150 a month, then 90 354 in year 34.
+  - Percentage strategies never get the pre-retirement factor: their budget comes from the projected portfolio. “Current portfolio %” has no inflation switch.
+  - The guardrails minimum income is in today's money by default (`floorReal`).
+- **Monthly income.** The income field is always a monthly amount. Quarterly or annual payouts pay 3× or 12× that amount per payment.
+- **Migration from V4 (scenario `v` < 3).** V4 had one `indexed` switch for both questions and stored the fixed amount per payment. Saved plans and share links map as: fixed + indexed → today's money + raise during retirement; fixed + not indexed → at retirement + constant; the per-payment amount becomes its monthly equivalent; a guardrails minimum stays indexed only if it was before. Results are identical to V4 (bit-for-bit, or within 1e-12 relative for quarterly/annual fixed amounts); `tests/v41.test.ts` checks this against a frozen copy of the V4 engine in `tests/fixtures/v4`.
 - **Annual review.** Reviews happen at the start of every withdrawal year (`start + 12k`), before that month's cashflows. The budget is set once and split evenly over the year's payments, so 4 % is never taken every month.
 - **Requested vs. paid.** Payments are capped at the balance. The engine records requested and paid amounts per withdrawal year, plus any shortfall.
 - **Income.** Monthly income = paid ÷ 12 per withdrawal year. Today's-money income deflates at the start of each withdrawal year.

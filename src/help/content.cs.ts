@@ -1,6 +1,7 @@
 import { totalMonths } from '../model/scenario'
 import { baseAmount, depositFee, feeDrag, grow, nextYearContribution, perYear, realOf, timingDifference } from './examples'
 import type { HelpContent, HelpCtx } from './types'
+import { plannedIncome } from '../model/retirement'
 
 const PER: Record<string, string> = { weekly: 'týden', monthly: 'měsíc', quarterly: 'čtvrtletí', semiannual: 'pololetí', annual: 'rok' }
 const EVERY: Record<string, string> = { weekly: 'každý týden', monthly: 'každý měsíc', quarterly: 'každé čtvrtletí', semiannual: 'každé pololetí', annual: 'každý rok' }
@@ -233,14 +234,12 @@ export const helpCs: HelpContent = {
     how: 'Výběry snižují zůstatek, zbytek se dál zhodnocuje. Pokud jsou větší než zhodnocení, může se portfolio vyčerpat.',
     limit: 'Počítá se se stálým výnosem. Na skutečných trzích může pár špatných let na začátku důchodu vyčerpat portfolio dřív — viz sekce Riziko.',
   }),
-  withdrawalAmount: (c) => {
-    const w = c.s.withdrawal
-    return {
-      title: 'Výše a četnost výběrů',
-      what: 'Kolik každým výběrem vyberete a jak často.',
-      example: `${c.money(w.amount)} ${EVERY[w.frequency]} je ${c.money(perYear(w.amount, w.frequency))} ročně.`,
-    }
-  },
+  withdrawalAmount: (c) => ({
+    title: 'Četnost výplat',
+    what: 'Jak často se peníze vyplácejí: měsíčně, čtvrtletně nebo jednou ročně.',
+    how: 'Částky se vždy zobrazují jako měsíční ekvivalent (roční součet ÷ 12), aby šly plány s různou četností férově porovnat.',
+    example: `${c.money(c.s.retirement.income)} měsíčně vyplácených čtvrtletně znamená ${c.money(perYear(c.s.retirement.income, 'monthly') / 4)} na jednu výplatu.`,
+  }),
   withdrawalStart: (c) => ({
     title: 'Začátek výběrů',
     what: 'Rok plánu, ve kterém proběhne první výběr.',
@@ -254,9 +253,10 @@ export const helpCs: HelpContent = {
     what: 'Zda výběry pokračují až do konce plánu, nebo skončí ve zvoleném roce.',
   }),
   withdrawalIndexed: (c) => ({
-    title: 'Navyšovat o inflaci',
-    what: 'Jednou ročně zvýší výběr o inflaci, takže si zachová kupní sílu.',
-    example: `${c.money(c.s.withdrawal.amount)} měsíčně při inflaci ${c.pct(infl(c))} bude ve druhém roce ${c.money(nextYearContribution(c.s.withdrawal.amount, infl(c)))}.`,
+    title: 'Každoročně navyšovat rentu o inflaci',
+    what: 'Jednou ročně zvýší váš příjem v důchodu o inflaci, takže si během důchodu zachová kupní sílu.',
+    how: 'Týká se jen let po začátku výběrů. Jak částka roste před důchodem, určuje volba „V dnešních cenách / Při začátku výběrů“.',
+    example: `${c.money(baseAmount(c.s.currency, 40_000))} měsíčně při inflaci ${c.pct(infl(c))} bude ve druhém roce ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))}.`,
   }),
   withdrawalStop: () => ({
     title: 'Ukončit vklady',
@@ -279,6 +279,49 @@ export const helpCs: HelpContent = {
   }),
 
   /* ───────── Důchod a finanční nezávislost ───────── */
+  fixedWithdrawal: (c) => {
+    const p = plannedIncome(c.s, c.computed.result)
+    return {
+      title: 'Pevná částka',
+      what: 'Sami si určíte, kolik chcete měsíčně dostávat. Plán tuto částku vybírá, dokud ji portfolio dokáže vyplatit.',
+      how: 'Určují ji dvě samostatné volby: zda je částka v dnešních cenách, nebo při začátku výběrů, a zda se během důchodu navyšuje o inflaci.',
+      example: p ? `Váš plán: ${c.money(p.firstMonthly)} měsíčně v prvním roce výběrů (rok ${p.startYear}).` : undefined,
+      limit: 'Částka je plán. Pokud se portfolio vyčerpá, vyplatí se jen to, co v něm zbývá.',
+    }
+  },
+  amountBasis: (c) => {
+    const years = Math.max(0, c.s.withdrawal.startYear - 1)
+    const a = c.s.retirement.income
+    const grown = a / realOf(1, years, infl(c))
+    return {
+      title: 'V dnešních cenách, nebo při začátku výběrů?',
+      what: 'Říká kalkulačce, co zadaná částka znamená.',
+      how: '„V dnešních cenách“: kupní síla, kterou chcete mít — do začátku výběrů se navyšuje o inflaci. „Při začátku výběrů“: skutečná částka, kterou budete v prvním roce vybírat, použije se beze změny.',
+      example: years > 0 ? `${c.money(a)} v dnešních cenách odpovídá po ${years} letech inflace ${c.pct(infl(c))} zhruba ${c.money(grown)}. Zadáno „při začátku výběrů“ zůstane ${c.money(a)} — dnes by to odpovídalo zhruba ${c.money(realOf(a, years, infl(c)))}.` : undefined,
+      more: 'Ani jedna volba nemění, jak se příjem vyvíjí po začátku důchodu — o tom rozhoduje samostatný přepínač „Každoročně navyšovat rentu o inflaci“. Inflace se nikdy nezapočítá dvakrát.',
+    }
+  },
+  inflationBefore: (c) => ({
+    title: 'Inflace před důchodem',
+    what: 'Mezi dneškem a začátkem výběrů ceny rostou.',
+    how: 'Navyšuje se o ni jen částka zadaná v dnešních cenách. Procentní strategie ji nepotřebují: jejich částka už vychází z odhadované budoucí hodnoty portfolia.',
+    example: `Při ${c.pct(infl(c))} ročně odpovídá ${c.money(baseAmount(c.s.currency, 40_000))} dnes zhruba ${c.money(baseAmount(c.s.currency, 40_000) / realOf(1, 32, infl(c)))} za 32 let.`,
+  }),
+  inflationDuring: (c) => ({
+    title: 'Inflace během důchodu',
+    what: 'Zda váš příjem po začátku výběrů každý rok roste.',
+    how: 'Zapnuto: příjem si zachová kupní sílu. Vypnuto: částka zůstává stejná a každý rok si za ni koupíte o něco méně. „% z aktuální hodnoty“ tento přepínač nemá — sleduje portfolio.',
+    example: `${c.money(baseAmount(c.s.currency, 40_000))} → 2. rok: ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} → 3. rok: ${c.money(nextYearContribution(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)), infl(c)))} měsíčně.`,
+  }),
+  desiredVsActual: (c) => {
+    const t = c.computed.result?.totals
+    return {
+      title: 'Plánováno vs. skutečně vyplaceno',
+      what: 'Plánovaný výběr je to, co strategie požaduje; vyplacená částka je to, co portfolio skutečně dokázalo vyplatit.',
+      how: 'Dokud se portfolio nevyčerpá, jsou stejné. Poté se rozdíl zobrazuje jako nekrytý.',
+      example: t && t.shortfall > 0 ? `Ve vašem plánu se celkem nepodařilo vyplatit ${c.money(t.shortfall)} plánovaných výběrů.` : 'Ve vašem plánu se vyplatí všechny plánované výběry.',
+    }
+  },
   withdrawalStrategy: () => ({
     title: 'Strategie výběrů',
     what: 'Pravidlo, které určuje, kolik si každý rok vyberete.',
@@ -317,17 +360,21 @@ export const helpCs: HelpContent = {
     what: 'O kolik se roční rozpočet smí zvýšit nebo snížit oproti loňským výdajům navýšeným o inflaci.',
     example: 'Při loňských 240 000, inflaci 2 % a limitech +5 % / −2,5 % zůstane letošní rozpočet zhruba mezi 238 680 a 257 040, ať trhy udělají cokoli.',
   }),
-  incomeFloor: () => ({
+  incomeFloor: (c) => ({
     title: 'Minimální příjem',
     what: 'Měsíční částka, pod kterou dynamické výběry nikdy neklesnou.',
-    how: 'Je v penězích 1. roku a o inflaci roste, jen když je zapnuté „Navyšovat o inflaci“. Má přednost před limitem poklesu — a při dlouhém poklesu trhů může portfolio vyčerpat.',
+    how: c.s.withdrawal.floorReal ? 'Je v dnešních cenách a roste s inflací. Má přednost před limitem poklesu.' : 'Je to pevná nominální částka (převzatá ze staršího uloženého plánu). Má přednost před limitem poklesu.',
+    limit: 'Minimum neznamená, že si ho portfolio může dovolit — při dlouhém poklesu trhů ho může vyčerpat.',
   }),
-  desiredIncome: (c) => ({
-    title: 'Požadovaný měsíční příjem',
-    what: 'Příjem, který by vám investice měly v důchodu poskytovat.',
-    how: 'Slouží k výpočtu potřebného kapitálu a ke kontrole, zda zvolená strategie tento příjem skutečně vyplatí.',
-    example: c.s.retirement.real && c.s.inflationEnabled ? `${c.money(c.s.retirement.income)} v dnešních penězích, přepočtených na ceny v roce odchodu do důchodu.` : `${c.money(c.s.retirement.income)} měsíčně.`,
-  }),
+  desiredIncome: (c) => {
+    const p = plannedIncome(c.s, c.computed.result)
+    return {
+      title: 'Požadovaný měsíční příjem',
+      what: c.s.withdrawal.strategy === 'fixed' ? 'Měsíční příjem, který chcete v důchodu vybírat.' : 'Příjem, který byste chtěli — výsledky ukážou, zda ho vaše procentní strategie skutečně dosáhne.',
+      how: c.s.retirement.real ? 'Zadáno v dnešních cenách: do začátku výběrů se navyšuje o inflaci, aby si zachovalo stejnou kupní sílu.' : 'Zadáno jako skutečná částka při začátku výběrů: použije se beze změny.',
+      example: p && c.s.withdrawal.strategy === 'fixed' ? `Zadali jste ${c.money(c.s.retirement.income)}; v roce ${p.startYear} plán vybírá ${c.money(p.firstMonthly)} měsíčně.` : undefined,
+    }
+  },
   retirementIncome: () => ({
     title: 'Příjem v důchodu',
     what: 'Peníze, které vaše výběry skutečně vyplatí, vyjádřené jako měsíční částka pro každý rok důchodu.',

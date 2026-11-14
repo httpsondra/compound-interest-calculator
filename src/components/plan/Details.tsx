@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useI18n } from '../../i18n'
-import { totalMonths } from '../../model/scenario'
+import { paymentToMonthly, totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { downloadCsv } from '../../lib/csv'
 import { Icon } from '../ui/Icon'
@@ -226,9 +226,9 @@ export function WithdrawalCard() {
               {computed.sustainable.kind === 'rate'
                 ? f.pct(computed.sustainable.value * 100, 2)
                 : Number.isFinite(computed.sustainable.value)
-                  ? `${money(computed.sustainable.value)} ${t.per[s.withdrawal.frequency]}`
+                  ? `${money(paymentToMonthly(computed.sustainable.value, s.withdrawal.frequency))} ${t.per.monthly}`
                   : '—'}
-              {computed.sustainable.kind === 'amount' && s.withdrawal.indexed && s.inflationEnabled && <span className="tile-sub">{t.results.real}</span>}
+              {computed.sustainable.kind === 'amount' && s.retirement.real && s.inflationEnabled && <span className="tile-sub">{t.results.real}</span>}
               {computed.sustainable.kind === 'rate' && res.withdrawalYears[0] && (
                 <span className="tile-sub">
                   ≈ {money((computed.sustainable.value * res.withdrawalYears[0].reviewBalance) / 12)} {t.per.monthly}

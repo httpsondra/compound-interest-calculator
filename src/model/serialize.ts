@@ -9,6 +9,7 @@ import {
   type Currency,
   type GrowthMode,
   type Scenario,
+  paymentToMonthly,
 } from './scenario'
 
 /*
@@ -63,8 +64,33 @@ export function sanitizeScenario(input: unknown, fallbackCurrency: Currency = 'C
       }))
     : []
   const startAge = input.startAge == null ? null : int(input.startAge, 0, 120, 30)
+
+  /*
+   * V4.1 migration (scenario version < 3).
+   * Before V4.1 one switch (`indexed`) meant BOTH "the fixed amount is in today's money" and
+   * "raise it every year in retirement", and the fixed amount lived in `withdrawal.amount`
+   * next to a separate desired income. V4.1 merges the fixed amount into the desired income
+   * and splits the two inflation questions. The mapping reproduces V4 results exactly:
+   *   (a quarterly/annual amount becomes its monthly equivalent: amount ÷ 3 or ÷ 12)
+   *   fixed + indexed      → income = amount, basis "today's money", raised during retirement
+   *   fixed + not indexed  → income = amount, basis "at retirement", constant during retirement
+   *   guardrails floor     → in today's money only if it was indexed before
+   * Percentage strategies keep their desired income (it never drove withdrawals).
+   */
+  const legacy = input.v !== 3
+  const strategy = oneOf<WithdrawalStrategy>(w.strategy, WITHDRAWAL_STRATEGIES, 'fixed')
+  const indexed = bool(w.indexed, true)
+  const legacyFixed = legacy && strategy === 'fixed'
+  // V4 stored the fixed amount per payment; V4.1 stores a monthly income.
+  const legacyFreq = oneOf<Frequency>(w.frequency, ['monthly', 'quarterly', 'annual'], 'monthly')
+  const income = legacyFixed
+    ? paymentToMonthly(num(w.amount, 0, MONEY_MAX, num(r.income, 0, MONEY_MAX, d.retirement.income)), legacyFreq)
+    : num(r.income, 0, MONEY_MAX, d.retirement.income)
+  const incomeReal = legacyFixed ? indexed : bool(r.real, true)
+  const floorReal = legacy ? indexed : bool(w.floorReal, true)
+
   return {
-    v: 2,
+    v: 3,
     id: typeof input.id === 'string' && /^[\w-]{1,64}$/.test(input.id) ? input.id : uid('sc'),
     name: str(input.name, 60, ''),
     currency,
@@ -95,20 +121,17 @@ export function sanitizeScenario(input: unknown, fallbackCurrency: Currency = 'C
       enabled: bool(w.enabled, false),
       startYear: int(w.startYear, 1, 100, d.withdrawal.startYear),
       endYear: w.endYear == null ? null : int(w.endYear, 1, 100, 30),
-      amount: num(w.amount, 0, MONEY_MAX, d.withdrawal.amount),
       frequency: oneOf<Frequency>(w.frequency, ['monthly', 'quarterly', 'annual'], 'monthly'),
-      indexed: bool(w.indexed, true),
+      indexed,
       stopContributions: bool(w.stopContributions, true),
-      strategy: oneOf<WithdrawalStrategy>(w.strategy, WITHDRAWAL_STRATEGIES, 'fixed'),
+      strategy,
       rate: num(w.rate, 0, 20, 4),
       maxIncrease: num(w.maxIncrease, 0, 100, 5),
       maxDecrease: num(w.maxDecrease, 0, 100, 2.5),
       floor: num(w.floor, 0, MONEY_MAX, 0),
+      floorReal,
     },
-    retirement: {
-      income: num(r.income, 0, MONEY_MAX, d.retirement.income),
-      real: bool(r.real, true),
-    },
+    retirement: { income, real: incomeReal },
     goal: {
       enabled: bool(g.enabled, false),
       target: num(g.target, 0, MONEY_MAX, d.goal.target),

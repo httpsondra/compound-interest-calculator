@@ -1,6 +1,7 @@
 import { totalMonths } from '../model/scenario'
 import { baseAmount, depositFee, feeDrag, grow, nextYearContribution, perYear, realOf, timingDifference } from './examples'
 import type { HelpContent, HelpCtx } from './types'
+import { plannedIncome } from '../model/retirement'
 
 const PER: Record<string, string> = { weekly: 'week', monthly: 'month', quarterly: 'quarter', semiannual: 'half-year', annual: 'year' }
 const rate = (c: HelpCtx) => (c.s.annualReturn > 0 ? c.s.annualReturn : 7)
@@ -233,14 +234,12 @@ export const helpEn: HelpContent = {
     how: 'Withdrawals reduce the balance while the rest keeps growing. If they are larger than the growth, the portfolio can run out.',
     limit: 'This uses a constant return. Real markets with bad years early in retirement can deplete a portfolio sooner — see the Risk view.',
   }),
-  withdrawalAmount: (c) => {
-    const w = c.s.withdrawal
-    return {
-      title: 'Withdrawal amount and frequency',
-      what: 'How much you take out each time, and how often.',
-      example: `${c.money(w.amount)} every ${PER[w.frequency]} is ${c.money(perYear(w.amount, w.frequency))} a year.`,
-    }
-  },
+  withdrawalAmount: (c) => ({
+    title: 'Withdrawal frequency',
+    what: 'How often money is paid out: monthly, quarterly or once a year.',
+    how: 'Amounts are always shown as a monthly equivalent (yearly total ÷ 12), so plans with different frequencies compare fairly.',
+    example: `${c.money(c.s.retirement.income)} a month paid quarterly means ${c.money(perYear(c.s.retirement.income, 'monthly') / 4)} per payment.`,
+  }),
   withdrawalStart: (c) => ({
     title: 'Withdrawals start',
     what: 'The plan year in which the first withdrawal is made.',
@@ -254,9 +253,10 @@ export const helpEn: HelpContent = {
     what: 'Whether withdrawals continue until the end of the plan or stop after a chosen year.',
   }),
   withdrawalIndexed: (c) => ({
-    title: 'Increase with inflation',
-    what: 'Raises the withdrawal once a year by the inflation rate, so it keeps its purchasing power.',
-    example: `${c.money(c.s.withdrawal.amount)} a month with ${c.pct(infl(c))} inflation becomes ${c.money(nextYearContribution(c.s.withdrawal.amount, infl(c)))} in the second year.`,
+    title: 'Increase income with inflation every year',
+    what: 'Raises your retirement income once a year by the inflation rate, so it keeps its purchasing power during retirement.',
+    how: 'This only affects the years after withdrawals start. How the amount grows before retirement is decided by “In today’s money / At retirement”.',
+    example: `${c.money(baseAmount(c.s.currency, 40_000))} a month with ${c.pct(infl(c))} inflation becomes ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} in the second year.`,
   }),
   withdrawalStop: () => ({
     title: 'Stop contributions',
@@ -279,6 +279,49 @@ export const helpEn: HelpContent = {
   }),
 
   /* ───────── Retirement & financial independence ───────── */
+  fixedWithdrawal: (c) => {
+    const p = plannedIncome(c.s, c.computed.result)
+    return {
+      title: 'Fixed amount',
+      what: 'You choose how much you want to receive each month. The plan withdraws that amount for as long as the portfolio can pay it.',
+      how: 'Two separate choices shape it: whether the amount is in today’s money or at retirement, and whether it rises with inflation during retirement.',
+      example: p ? `Your plan: ${c.money(p.firstMonthly)} a month in the first year of withdrawals (year ${p.startYear}).` : undefined,
+      limit: 'The amount is a plan. If the portfolio runs out, only what is left can be paid.',
+    }
+  },
+  amountBasis: (c) => {
+    const years = Math.max(0, c.s.withdrawal.startYear - 1)
+    const a = c.s.retirement.income
+    const grown = a / realOf(1, years, infl(c))
+    return {
+      title: 'In today’s money or at retirement?',
+      what: 'Tells the calculator what the amount you typed means.',
+      how: '“In today’s money”: the purchasing power you want — it is raised with inflation until withdrawals start. “At retirement”: the actual amount you will withdraw in the first year, used as it is.',
+      example: years > 0 ? `${c.money(a)} in today’s money becomes about ${c.money(grown)} after ${years} years of ${c.pct(infl(c))} inflation. Entered “at retirement”, it stays ${c.money(a)} — worth about ${c.money(realOf(a, years, infl(c)))} today.` : undefined,
+      more: 'Neither choice changes how income develops after retirement starts — that is the separate switch “Increase income with inflation every year”. Inflation is never applied twice.',
+    }
+  },
+  inflationBefore: (c) => ({
+    title: 'Inflation before retirement',
+    what: 'Prices rise between today and the start of withdrawals.',
+    how: 'Only an amount entered in today’s money is raised for it. Percentage strategies don’t need it: their amount already comes from the projected future portfolio.',
+    example: `At ${c.pct(infl(c))} a year, ${c.money(baseAmount(c.s.currency, 40_000))} today ≈ ${c.money(baseAmount(c.s.currency, 40_000) / realOf(1, 32, infl(c)))} in 32 years.`,
+  }),
+  inflationDuring: (c) => ({
+    title: 'Inflation during retirement',
+    what: 'Whether your income rises each year after withdrawals have started.',
+    how: 'On: income keeps its purchasing power. Off: the amount stays the same and buys a little less every year. “% of current portfolio” has no such switch — it follows the portfolio.',
+    example: `${c.money(baseAmount(c.s.currency, 40_000))} → year 2: ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} → year 3: ${c.money(nextYearContribution(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)), infl(c)))} a month.`,
+  }),
+  desiredVsActual: (c) => {
+    const t = c.computed.result?.totals
+    return {
+      title: 'Planned vs. actually paid',
+      what: 'The planned withdrawal is what the strategy asks for; the paid amount is what the portfolio could actually pay.',
+      how: 'They are the same until the portfolio runs out. After that the difference is shown as unfunded.',
+      example: t && t.shortfall > 0 ? `In your plan ${c.money(t.shortfall)} of planned withdrawals could not be paid in total.` : 'In your plan every planned withdrawal is paid.',
+    }
+  },
   withdrawalStrategy: () => ({
     title: 'Withdrawal strategy',
     what: 'The rule that decides how much you take out each year.',
@@ -317,17 +360,21 @@ export const helpEn: HelpContent = {
     what: 'How much the yearly budget may rise or fall compared with last year’s inflation-adjusted spending.',
     example: 'With last year’s 240 000, 2 % inflation and limits of +5 % / −2.5 %, this year’s budget stays between about 238 680 and 257 040, whatever the portfolio does.',
   }),
-  incomeFloor: () => ({
+  incomeFloor: (c) => ({
     title: 'Minimum income',
     what: 'A monthly amount that dynamic spending never goes below.',
-    how: 'It is in year-1 money and rises with inflation only when “Increase with inflation” is on. It overrides the decrease limit — and can empty the portfolio if markets are bad for long.',
+    how: c.s.withdrawal.floorReal ? 'It is in today’s money and rises with inflation. It overrides the decrease limit.' : 'It is a fixed nominal amount (kept from an older saved plan). It overrides the decrease limit.',
+    limit: 'A minimum does not mean the portfolio can afford it — in long bad markets it can empty the portfolio.',
   }),
-  desiredIncome: (c) => ({
-    title: 'Desired monthly income',
-    what: 'The income you would like your investments to provide in retirement.',
-    how: 'It is used to calculate the capital you need and to check whether your chosen strategy actually pays it.',
-    example: c.s.retirement.real && c.s.inflationEnabled ? `${c.money(c.s.retirement.income)} in today’s money, raised to future prices for the retirement year.` : `${c.money(c.s.retirement.income)} a month.`,
-  }),
+  desiredIncome: (c) => {
+    const p = plannedIncome(c.s, c.computed.result)
+    return {
+      title: 'Desired monthly income',
+      what: c.s.withdrawal.strategy === 'fixed' ? 'The monthly income you want to withdraw in retirement.' : 'The income you would like — the results show whether your percentage strategy actually reaches it.',
+      how: c.s.retirement.real ? 'Entered in today’s money: it is raised with inflation until withdrawals start, so it keeps the same purchasing power.' : 'Entered as the actual amount at the start of withdrawals: used as it is.',
+      example: p && c.s.withdrawal.strategy === 'fixed' ? `You entered ${c.money(c.s.retirement.income)}; in year ${p.startYear} the plan withdraws ${c.money(p.firstMonthly)} a month.` : undefined,
+    }
+  },
   retirementIncome: () => ({
     title: 'Retirement income',
     what: 'The money your withdrawals actually pay, shown as a monthly amount for each retirement year.',

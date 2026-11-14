@@ -64,6 +64,13 @@
   margin: var(--s-6) 0 var(--s-3);
 }
 
+.chart-note {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-3);
+}
+
 .note {
   margin-top: var(--s-3);
   color: var(--text-3);
@@ -2780,40 +2787,196 @@
   background: var(--surface);
 }
 
-.income-preview {
-  display: grid;
-  gap: 2px;
-  padding: 12px 14px;
-  border-radius: var(--r-md);
-  background: linear-gradient(135deg, var(--accent-soft-2), var(--accent-soft));
+.wd-controls {
+  gap: var(--s-3);
 }
 
-.income-preview-k {
+/* Withdrawal configuration: numbered steps (strategy → amount → timing → inflation). */
+.wd-step {
+  display: grid;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+.wd-step:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.wd-step-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 24px;
+}
+
+.wd-step-n {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-2xs);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+  background: var(--accent-soft-2);
+}
+
+.wd-step-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wd-step-body {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.wd-target {
+  display: grid;
+  gap: var(--s-2);
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+}
+
+.wd-target .nf-box {
+  background: var(--surface);
+}
+
+.wd-note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-2);
+}
+
+/* Live breakdown: how the typed amount becomes the first planned withdrawal. */
+.breakdown {
+  display: grid;
+  gap: var(--s-2);
+  padding: 14px;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--accent-soft-2), var(--accent-soft));
+  min-width: 0;
+}
+
+.breakdown--muted {
+  background: var(--surface-sunken);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.breakdown--muted p {
+  margin: 0;
+}
+
+.breakdown-k {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  margin: 0;
   font-size: var(--fs-xs);
-  font-weight: 560;
+  font-weight: 580;
   color: var(--accent-text);
 }
 
-.income-preview-v {
+.breakdown-rows {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.breakdown-rows > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  font-size: var(--fs-xs);
+}
+
+.breakdown-rows dt {
+  color: var(--text-2);
+  min-width: 0;
+}
+
+.breakdown-rows dd {
+  margin: 0;
+  flex: none;
+  font-weight: 560;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.breakdown-result {
+  display: grid;
+  gap: 1px;
+  padding-top: var(--s-2);
+  border-top: 1px dashed var(--accent-ring);
+}
+
+.breakdown-where {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.breakdown-v {
   font-size: var(--fs-xl);
   font-weight: 620;
   letter-spacing: -0.02em;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
-.income-preview-v span {
+.breakdown-v span {
   font-size: var(--fs-sm);
   font-weight: 500;
+  letter-spacing: 0;
   color: var(--text-2);
 }
 
-.income-preview-s {
+.breakdown-sub {
   font-size: var(--fs-xs);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
+}
+
+.breakdown-explain {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-2);
+}
+
+.breakdown-during {
+  color: var(--text);
+}
+
+.breakdown-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--c-warn);
+  background: var(--c-warn-soft);
+}
+
+.breakdown-warn svg {
+  flex: none;
+  margin-top: 1px;
 }
 
 .retire {

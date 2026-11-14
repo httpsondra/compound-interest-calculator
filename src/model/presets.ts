@@ -40,12 +40,12 @@ export function buildPreset(id: PresetId, currency: Currency, keep?: Partial<Sce
         annualReturn: 6,
         contribMode: 'constant',
         constant: { amount: s(8_000), frequency: 'monthly' },
+        retirement: { income: s(25_000), real: true },
         withdrawal: {
           ...base.withdrawal,
           enabled: true,
           startYear: 31,
           endYear: null,
-          amount: s(25_000),
           frequency: 'monthly',
           indexed: true,
           stopContributions: true,

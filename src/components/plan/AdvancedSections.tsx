@@ -6,7 +6,7 @@ import { NumberField } from '../ui/NumberField'
 import { Disclosure, Segmented, Switch } from '../ui/controls'
 import { useIssue } from './Controls'
 import { HelpTip } from '../ui/HelpTip'
-import { DesiredIncome, WithdrawalControls } from '../retirement/WithdrawalControls'
+import { WithdrawalControls } from '../retirement/WithdrawalControls'
 import { firstYearBudget } from '../../model/retirement'
 
 export function AdvancedSections() {
@@ -167,12 +167,11 @@ export function AdvancedSections() {
           !w.enabled
             ? t.withdrawal.summaryOff
             : w.strategy === 'fixed'
-              ? `${f.money(w.amount, s.currency, { compact: true })} ${t.per[w.frequency]}`
+              ? `${f.money(s.retirement.income, s.currency, { compact: true })} ${t.per.monthly}${s.retirement.real && s.inflationEnabled ? ` · ${t.wd.basisToday.toLowerCase()}` : ''}`
               : `${f.pct(w.rate, 2)}${firstYear ? ` · ≈ ${f.money(firstYear.monthly, s.currency, { compact: true })} ${t.per.monthly}` : ''}`
         }
       >
         <WithdrawalControls />
-        {w.enabled && <DesiredIncome />}
       </Disclosure>
 
       <Disclosure
