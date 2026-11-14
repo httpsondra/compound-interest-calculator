@@ -2820,6 +2820,24 @@
   display: grid;
   gap: var(--s-8);
   grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'hero'
+    'config'
+    'main';
+}
+
+.retire-hero {
+  grid-area: hero;
+  min-width: 0;
+}
+
+.retire-config {
+  grid-area: config;
+  min-width: 0;
+}
+
+.retire-main {
+  grid-area: main;
 }
 
 .retire-main {
@@ -2832,6 +2850,10 @@
 @media (min-width: 1080px) {
   .retire-grid {
     grid-template-columns: var(--controls-w) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'config hero'
+      'config main';
     column-gap: clamp(32px, 4vw, 64px);
   }
   .retire-config {

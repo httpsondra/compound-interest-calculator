@@ -71,6 +71,11 @@ export default function RetirementView({ onCompare }: { onCompare: () => void })
     <div className="retire">
       <RetireHead />
       <div className="retire-grid">
+        {res && stats && (
+          <div className="retire-hero">
+            <IncomeHero stats={stats} real={real} />
+          </div>
+        )}
         <aside className="retire-config" aria-label={t.retire.settings}>
           <div className="config">
             <div className="config-body">
@@ -86,7 +91,6 @@ export default function RetirementView({ onCompare }: { onCompare: () => void })
             </section>
           ) : (
             <>
-              <IncomeHero stats={stats} real={real} />
               {fi && <FiCard fi={fi} />}
               <section className="card chart-card" aria-labelledby="ret-chart-h">
                 <header className="card-head">
