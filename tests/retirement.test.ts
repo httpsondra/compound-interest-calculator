@@ -15,8 +15,11 @@ import {
   stressTest,
 } from '../src/model/retirement'
 
-const retiree = (o: Partial<Scenario['withdrawal']> = {}, extra: Partial<Scenario> = {}): Scenario => {
+/** `amount` is the V4 shorthand for a fixed withdrawal: since V4.1 it is the retirement income, entered in today's money when indexed. */
+const retiree = (o: Partial<Scenario['withdrawal']> & { amount?: number } = {}, extra: Partial<Scenario> = {}): Scenario => {
   const s = defaultScenario('CZK')
+  const { amount, ...w } = o
+  if (amount != null && !extra.retirement) extra = { ...extra, retirement: { income: amount, real: w.indexed ?? true } }
   return {
     ...s,
     initial: 6_000_000,
@@ -27,7 +30,7 @@ const retiree = (o: Partial<Scenario['withdrawal']> = {}, extra: Partial<Scenari
     annualReturn: 5,
     inflation: 2.5,
     inflationEnabled: true,
-    withdrawal: { ...s.withdrawal, enabled: true, startYear: 1, endYear: null, strategy: 'initialPct', rate: 4, indexed: true, ...o },
+    withdrawal: { ...s.withdrawal, enabled: true, startYear: 1, endYear: null, strategy: 'initialPct', rate: 4, indexed: true, ...w },
     ...extra,
   }
 }
@@ -177,7 +180,7 @@ describe('persistence', () => {
     expect(back.retirement).toEqual({ income: 45_000, real: false })
     const legacy = sanitizeScenario({ withdrawal: { enabled: true, amount: 1000 } })!
     expect(legacy.withdrawal.strategy).toBe('fixed')
-    expect(legacy.withdrawal.amount).toBe(1000)
+    expect(legacy.retirement).toEqual({ income: 1000, real: true })
   })
 })
 
@@ -205,10 +208,11 @@ describe('sustainable withdrawal per strategy', () => {
 
 describe('one income rule for deterministic and Monte Carlo', () => {
   it('a withdrawal phase shorter than a year is evaluated pro-rata, not counted as success', () => {
-    const s = retiree({ strategy: 'fixed', amount: 20_000, startYear: 30, indexed: false }, { horizonYears: 29, horizonMonths: 6, retirement: { income: 25_000, real: false } })
-    const plan = toPlan(s)
-    const fi = fiAnalysis(s, simulate(plan))!
+    // Six months of withdrawals that run dry after ~2 months: pro-rata the year is not funded.
+    const s = retiree({ strategy: 'fixed', amount: 20_000, startYear: 30, indexed: false }, { initial: 40_000, annualReturn: 0, horizonYears: 29, horizonMonths: 6 })
+    const fi = fiAnalysis(s, simulate(toPlan(s)))!
     expect(fi.sustain.meets).toBe(false)
+    const plan = toPlan(retiree({ strategy: 'fixed', amount: 20_000, startYear: 30, indexed: false }, { horizonYears: 29, horizonMonths: 6 }))
     const mc = runMonteCarlo({ plan, volatility: 0, simulations: 3, seed: 1, income: { monthly: 25_000, real: false } })
     expect(mc.incomeProbability).toBe(0)
     const ok = runMonteCarlo({ plan, volatility: 0, simulations: 3, seed: 1, income: { monthly: 20_000, real: false } })
