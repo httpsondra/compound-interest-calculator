@@ -360,6 +360,8 @@ export function incomeCheck(s: Scenario, res: SimResult) {
   if (!s.withdrawal.enabled || !res.withdrawalYears.length) return null
   const goal = incomeTarget(s)
   const ev = evaluateIncome(res.withdrawalYears, inflationRate(s), goal.monthly, goal.real)
+  // No payment inside the horizon: there is no income to judge (the headline falls back to the balance).
+  if (ev.evaluatedYears === 0) return null
   return { ...ev, firstShortYear: ev.firstShortIndex != null ? s.withdrawal.startYear + ev.firstShortIndex : null }
 }
 

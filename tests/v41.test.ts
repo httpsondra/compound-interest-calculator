@@ -259,7 +259,7 @@ describe('V4.1 review fixes', () => {
       } else {
         // Nothing is paid inside the horizon: no income is shown and nothing counts as funded.
         expect(incomeStats(r, 0.025)).toBeNull()
-        expect(incomeCheck(s, r)!.funded).toBe(false)
+        expect(incomeCheck(s, r)).toBeNull()
         expect(mc.incomeProbability).toBe(0)
       }
     }
@@ -274,6 +274,15 @@ describe('V4.1 review fixes', () => {
     expect(runMonteCarlo({ plan: toPlan(above), volatility: 0, simulations: 2, seed: 1, income: incomeTarget(above) }).incomeProbability).toBe(0)
     const below = { ...s, retirement: { income: trueRate * 0.99, real: false } }
     expect(incomeCheck(below, r)!.funded).toBe(true)
+  })
+  it('a zero budget in a partial year still counts as zero income (not as “no withdrawals”)', () => {
+    const base = plan({ real: false, indexed: false, initial: 0 })
+    const s: Scenario = { ...base, constant: { amount: 0, frequency: 'monthly' }, horizonYears: 0, horizonMonths: 6, withdrawal: { ...base.withdrawal, strategy: 'currentPct', startYear: 1 } }
+    const r = run(s)
+    expect(incomeStats(r, 0)!.initial).toBe(0)
+    const c = incomeCheck(s, r)!
+    expect(c.funded).toBe(false)
+    expect(c.firstShortYear).toBe(1)
   })
   it('the withdrawal summary budget uses the full-year rate', async () => {
     const { firstYearBudget } = await import('../src/model/retirement')

@@ -18,8 +18,11 @@ export function yearMonthlyIncome(y: WithdrawalYear, inflation: number, real: bo
   return real ? m / Math.pow(1 + inflation, y.startMonth / 12) : m
 }
 
-/** Withdrawal years that count: a partial year only if a payment falls inside the horizon. */
-export const countedYears = (years: WithdrawalYear[]) => years.filter((y) => y.months >= 12 || y.requested > 0)
+/**
+ * Withdrawal years that count. A partial year is left out only when its planned payments all fall
+ * after the horizon (planned > 0 but nothing requested inside it); a zero budget still counts as 0.
+ */
+export const countedYears = (years: WithdrawalYear[]) => years.filter((y) => y.months >= 12 || y.requested > 0 || y.planned <= 0)
 
 export function evaluateIncome(years: WithdrawalYear[], inflation: number, desiredMonthly: number, real: boolean) {
   const counted = countedYears(years)
