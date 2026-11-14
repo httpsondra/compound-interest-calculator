@@ -1562,15 +1562,17 @@
 }
 
 .status-line {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
+  display: inline-block;
   margin-top: var(--s-4);
   padding: 7px 14px;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-lg);
   font-size: var(--fs-sm);
   font-weight: 560;
+  line-height: 1.45;
+}
+
+.status-line > * {
+  vertical-align: middle;
 }
 
 .status-line.is-pos {
@@ -1586,13 +1588,16 @@
 }
 
 .status-dot {
+  display: inline-block;
   width: 7px;
   height: 7px;
+  margin-right: 8px;
   border-radius: 50%;
   background: currentColor;
 }
 
 .status-sub {
+  margin-left: 8px;
   color: var(--text-2);
   font-weight: 450;
 }
