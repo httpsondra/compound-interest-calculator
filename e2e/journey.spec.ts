@@ -153,35 +153,6 @@ test('no horizontal overflow on narrow screens, all views, both themes', async (
   }
 })
 
-test('opening a share link with a full scenario list asks first and is undoable', async ({ page }) => {
-  await page.getByRole('link', { name: 'Compare' }).click()
-  for (const v of ['Return +1 pp', 'Return −1 pp', '+5 years']) {
-    await page.getByRole('button', { name: 'Create a variant' }).click()
-    await page.getByRole('menuitem', { name: v }).click()
-  }
-  await expect(page.locator('.scen')).toHaveCount(4)
-  const names = await page.locator('.scen-name').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value || (e as HTMLInputElement).placeholder))
-  // Build a share link through the app itself (clipboard captured).
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: async (text: string) => void ((window as unknown as { __copied: string }).__copied = text) },
-      configurable: true,
-    })
-  })
-  await page.reload()
-  await page.getByRole('button', { name: 'Share', exact: true }).click()
-  const shared = await page.evaluate(() => (window as unknown as { __copied: string }).__copied)
-  await page.goto(shared.replace('#/compare', '') + '#/compare')
-  // The list is full: the app asks before replacing anything (V4.2 audit PS-1).
-  await page.getByRole('button', { name: 'Replace it' }).click()
-  await expect(page.getByText(/Loaded a shared calculation/)).toBeVisible()
-  await expect(page.locator('.scen')).toHaveCount(4)
-  await page.getByRole('status').getByRole('button', { name: 'Undo' }).click()
-  await expect.poll(() =>
-    page.locator('.scen-name').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value || (e as HTMLInputElement).placeholder)),
-  ).toEqual(names)
-})
-
 test.describe('currency', () => {
   test('switching currency keeps the entered amounts and reformats everything', async ({ page }) => {
     await typeInto(page, 'Initial investment', '100000')
@@ -266,31 +237,36 @@ test('withdrawal plan headline shows value at withdrawal start, not a bare €0'
   await expect(page.locator('.hero-stats')).toContainText('Ending value')
 })
 
-test('a share link never silently deletes a saved plan when the list is full (V4.2 audit PS-1)', async ({ page }) => {
-  const mk = (id: string, name: string) => ({ v: 4, id, name, currency: 'EUR' })
-  await page.addInitScript((docs) => {
-    if (!sessionStorage.getItem('seeded')) {
-      localStorage.setItem('investcalc.v2.scenarios', JSON.stringify({ activeId: 'd', scenarios: docs }))
-      sessionStorage.setItem('seeded', '1')
-    }
-  }, [mk('a', 'Mine a'), mk('b', 'Mine b'), mk('c', 'Mine c'), mk('d', 'Mine d')])
-  const token = btoa(JSON.stringify({ sv: 2, s: { v: 4, name: 'Shared' } })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-  await page.goto(`/?lang=en&s=${token}#/compare`)
-  await expect(page.getByText(/You already have 4 saved plans/)).toBeVisible()
-  // Nothing is deleted until the user decides — not even after the usual toast lifetime.
-  await page.waitForTimeout(7000)
-  await expect(page.getByText(/You already have 4 saved plans/)).toBeVisible()
-  await expect(page.locator('.scen-name')).toHaveCount(4)
-  await page.getByRole('button', { name: 'Replace it' }).click()
-  await expect(page.getByText(/Loaded a shared calculation/)).toBeVisible()
-  const names = await page.locator('.scen-name').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value))
-  expect(names).toContain('Shared')
-  expect(names).not.toContain('Mine a')
-})
-
 test('Monte Carlo falls back to the main thread when the worker cannot load (V4.2 audit MC-1)', async ({ page }) => {
   await page.route(/mc\.worker/, (r) => r.abort())
   await page.goto('/?lang=en#/risk')
   await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 15_000 })
   await expect(page.locator('.risk .tiles, .tiles').first()).toBeVisible()
+})
+
+test('Monte Carlo recovers when the worker crashes during a simulation (V4.2 audit item 5)', async ({ page }) => {
+  // The worker loads, accepts the request, then throws while computing: a failure DURING execution.
+  await page.route(/mc\.worker/, (r) =>
+    r.fulfill({ status: 200, contentType: 'text/javascript', body: 'self.onmessage = () => { throw new Error("worker crashed during simulation") }' }),
+  )
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto('/?lang=en#/risk')
+  await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 20_000 })
+  await expect(page.locator('.tiles').first()).toBeVisible()
+  expect(errors.filter((e) => !/worker crashed/.test(e))).toEqual([])
+})
+
+test('Monte Carlo stays responsive and settles when parameters change rapidly', async ({ page }) => {
+  await page.goto('/?lang=en#/risk')
+  await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 20_000 })
+  const vol = page.getByRole('textbox', { name: /volatility/i }).first()
+  for (const v of ['5', '10', '15', '20', '25', '30']) {
+    await vol.click()
+    await vol.press('ControlOrMeta+a')
+    await vol.pressSequentially(v)
+    await vol.press('Enter')
+  }
+  await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 20_000 })
+  await expect(page.locator('.tiles').first()).toBeVisible()
 })

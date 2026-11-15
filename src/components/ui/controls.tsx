@@ -209,8 +209,6 @@ export interface ToastMsg {
   id: number
   text: string
   action?: { label: string; run: () => void }
-  /** Stays until the user acts or closes it (decisions that must not time out). */
-  sticky?: boolean
 }
 
 export function Toasts({ items, dismiss }: { items: ToastMsg[]; dismiss: (id: number) => void }) {
@@ -226,7 +224,6 @@ export function Toasts({ items, dismiss }: { items: ToastMsg[]; dismiss: (id: nu
 function ToastItem({ msg, dismiss }: { msg: ToastMsg; dismiss: (id: number) => void }) {
   const { t } = useI18n()
   useEffect(() => {
-    if (msg.sticky) return
     const id = window.setTimeout(() => dismiss(msg.id), msg.action ? 6000 : 3800)
     return () => window.clearTimeout(id)
   }, [msg, dismiss])

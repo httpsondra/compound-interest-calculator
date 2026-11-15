@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../i18n'
 import { runMonteCarlo, type MonteCarloInput, type MonteCarloResult } from '../../engine/montecarlo'
 import { incomeTarget, inflationRate, totalMonths } from '../../model/scenario'
+import { McRunner, type WorkerLike } from './mcRunner'
 import { useApp } from '../../state/context'
 import { XYChart, type Series } from '../chart/XYChart'
 import { Icon } from '../ui/Icon'
@@ -19,29 +20,17 @@ export default function RiskView() {
   const [seed, setSeed] = useState(20261113)
   const [result, setResult] = useState<MonteCarloResult | null>(null)
   const [running, setRunning] = useState(false)
-  const workerRef = useRef<Worker | null>(null)
   const reqId = useRef(0)
-  // Set when the worker cannot load or crashes: the current request is then re-run on the main thread.
-  const [workerFailed, setWorkerFailed] = useState(false)
+  const runner = useRef<McRunner | null>(null)
+  if (runner.current === null) {
+    runner.current = new McRunner(
+      typeof Worker === 'undefined' ? null : () => new Worker(new URL('./mc.worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike,
+      runMonteCarlo,
+    )
+  }
   const plan = computed.plan
 
-  useEffect(() => {
-    try {
-      const w = new Worker(new URL('./mc.worker.ts', import.meta.url), { type: 'module' })
-      // Attached at creation: a blocked or broken script fails before the first request is sent.
-      w.onerror = (ev) => {
-        ev.preventDefault()
-        w.terminate()
-        if (workerRef.current === w) workerRef.current = null
-        setWorkerFailed(true)
-      }
-      workerRef.current = w
-    } catch {
-      workerRef.current = null
-      setWorkerFailed(true)
-    }
-    return () => workerRef.current?.terminate()
-  }, [])
+  useEffect(() => () => runner.current?.dispose(), [])
 
   const H = totalMonths(s)
   const target = incomeTarget(s)
@@ -52,7 +41,6 @@ export default function RiskView() {
 
   useEffect(() => {
     if (!plan) return
-    const id = ++reqId.current
     const input: MonteCarloInput = {
       plan,
       volatility: vol / 100,
@@ -62,42 +50,18 @@ export default function RiskView() {
       income: plan.withdrawal && target ? { monthly: incomeMonthly, real: incomeReal } : null,
     }
     setRunning(true)
+    // Debounced; the runner cancels any earlier request, and stale answers are dropped by ID.
     const timer = window.setTimeout(() => {
-      const w = workerRef.current
-      const runHere = () => {
-        // Fallback when the worker cannot load (old browser, blocked script): compute on the main thread.
-        workerRef.current?.terminate()
-        workerRef.current = null
-        const r = runMonteCarlo(input)
+      const id = ++reqId.current
+      runner.current?.request(input, (r) => {
         if (id === reqId.current) {
           setResult(r)
           setRunning(false)
         }
-      }
-      if (w) {
-        w.onmessage = (e: MessageEvent<{ id: number; result: MonteCarloResult }>) => {
-          if (e.data.id === reqId.current) {
-            setResult(e.data.result)
-            setRunning(false)
-          }
-        }
-        w.onerror = (ev) => {
-          ev.preventDefault()
-          runHere()
-          setWorkerFailed(true)
-        }
-        w.onmessageerror = runHere
-        w.postMessage({ id, input })
-      } else {
-        const r = runMonteCarlo(input)
-        if (id === reqId.current) {
-          setResult(r)
-          setRunning(false)
-        }
-      }
+      })
     }, 220)
     return () => window.clearTimeout(timer)
-  }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real, target != null, incomeMonthly, incomeReal, workerFailed]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real, target != null, incomeMonthly, incomeReal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const money = (v: number) => f.money(v, s.currency)
   const extra = {

@@ -3,7 +3,9 @@ import { I18nProvider, createI18n, detectLang, type Lang } from './i18n'
 import { computeScenario } from './model/compute'
 import { defaultScenario, type Currency, type Scenario } from './model/scenario'
 import { decodeShare, encodeShare } from './model/serialize'
-import { MAX_SCENARIOS, loadDoc, useStore, type Doc } from './state/store'
+import { loadDoc, useStore, type Doc } from './state/store'
+import { addScenario, defaultTarget, importNeedsChoice, replaceScenario, type PendingImport } from './state/shareImport'
+import { ShareImportDialog } from './components/ShareImportDialog'
 import { AppCtx, type AppCtxValue } from './state/context'
 import { Header, type Theme, type View } from './components/Header'
 import { PlanView } from './components/plan/PlanView'
@@ -30,6 +32,17 @@ function readTheme(): Theme {
 
 /** A scenario decoded from `?s=`; applied after mount so the previous state stays in the undo history. */
 let pendingShared: Scenario | null = null
+/** `?s=` present but not a valid calculation: reported once, then removed from the URL. */
+let invalidShared = false
+
+/** Remove `?s=` only once the import is resolved (imported or cancelled), so a reload restores a pending one. */
+function clearShareParam() {
+  const params = new URLSearchParams(location.search)
+  if (!params.has('s')) return
+  params.delete('s')
+  const qs = params.toString()
+  history.replaceState(null, '', `${location.pathname}${qs ? `?${qs}` : ''}${location.hash}`)
+}
 
 function initialDoc(lang: Lang): Doc {
   const currency: Currency = lang === 'cs' ? 'CZK' : 'EUR'
@@ -39,10 +52,12 @@ function initialDoc(lang: Lang): Doc {
   const shared = params.get('s')
   if (shared) {
     const sc = decodeShare(shared)
+    // A valid link stays in the URL until the import is decided, so a reload restores it.
     if (sc) pendingShared = sc
-    params.delete('s')
-    const qs = params.toString()
-    history.replaceState(null, '', `${location.pathname}${qs ? `?${qs}` : ''}${location.hash}`)
+    else {
+      invalidShared = true
+      clearShareParam()
+    }
   }
   return doc
 }
@@ -56,44 +71,55 @@ export default function App() {
   const toastId = useRef(0)
   const store = useStore(() => initialDoc(lang))
   const i18n = useMemo(() => createI18n(lang), [lang])
-  const { t, fill } = i18n
+  const { t } = i18n
 
-  const toast = useCallback((text: string, action?: ToastMsg['action'], sticky = false) => {
+  const toast = useCallback((text: string, action?: ToastMsg['action']) => {
     const id = ++toastId.current
-    setToasts((xs) => [...xs.slice(-2), { id, text, action, sticky }])
+    setToasts((xs) => [...xs.slice(-2), { id, text, action }])
   }, [])
+  // A shared link waiting for a decision. Kept in state (not in the toast list), so unrelated
+  // notifications can never remove it.
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
   const dismiss = useCallback((id: number) => setToasts((xs) => xs.filter((x) => x.id !== id)), [])
 
   useEffect(() => {
+    if (invalidShared) {
+      invalidShared = false
+      toast(t.app.sharedInvalid)
+    }
     const sc = pendingShared
     if (!sc) return
     pendingShared = null
-    // Add the shared scenario as an undoable step. A link from someone else must never delete
-    // saved work on its own: when the list is full the user decides whether to replace a plan.
-    const add = (evict: boolean) =>
-      store.setDoc((d) => {
-        const others = d.scenarios.filter((x) => x.id !== sc.id)
-        while (evict && others.length >= MAX_SCENARIOS) {
-          const i = others.findIndex((x) => x.id !== d.activeId)
-          others.splice(i >= 0 ? i : 0, 1)
-        }
-        return { scenarios: [...others, sc], activeId: sc.id }
-      })
-    const full = store.doc.scenarios.filter((x) => x.id !== sc.id).length >= MAX_SCENARIOS
-    if (!full) {
-      add(false)
+    // A link from someone else never deletes saved work by itself: below the limit it is added
+    // (undoable); at the limit the user chooses which plan to replace.
+    if (!importNeedsChoice(store.doc, sc)) {
+      store.setDoc((d) => addScenario(d, sc))
+      clearShareParam()
       toast(t.app.sharedLoaded, { label: t.app.undo, run: store.undo })
       return
     }
-    const oldest = store.doc.scenarios.find((x) => x.id !== store.doc.activeId) ?? store.doc.scenarios[0]
-    toast(fill(t.app.sharedFull, { name: oldest.name || t.scenario.untitled }), {
-      label: t.app.sharedReplace,
-      run: () => {
-        add(true)
-        toast(t.app.sharedLoaded, { label: t.app.undo, run: store.undo })
-      },
-    }, true)
+    setPendingImport({ incoming: sc, targetId: defaultTarget(store.doc) })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const confirmImport = (targetId: string) => {
+    if (!pendingImport) return
+    const next = replaceScenario(store.doc, targetId, pendingImport.incoming)
+    if (!next) {
+      // The chosen plan was removed meanwhile: replace nothing, ask again.
+      setPendingImport({ ...pendingImport, targetId: null })
+      return
+    }
+    store.setDoc(next)
+    setPendingImport(null)
+    clearShareParam()
+    toast(t.app.sharedLoaded, { label: t.app.undo, run: store.undo })
+  }
+  const cancelImport = () => {
+    if (!pendingImport) return
+    setPendingImport(null)
+    clearShareParam()
+    toast(t.app.sharedCancelled)
+  }
 
   // Language: <html lang>, title, persistence
   useEffect(() => {
@@ -214,6 +240,13 @@ export default function App() {
           <p>{t.app.disclaimer}</p>
           <p className="footer-meta">InvestCalc · investcalc.dev</p>
         </footer>
+        <ShareImportDialog
+          pending={pendingImport}
+          scenarios={store.doc.scenarios}
+          onChoose={(id) => setPendingImport((p) => (p ? { ...p, targetId: id } : p))}
+          onConfirm={confirmImport}
+          onCancel={cancelImport}
+        />
         <Toasts items={toasts} dismiss={dismiss} />
       </AppCtx.Provider>
     </I18nProvider>
