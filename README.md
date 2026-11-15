@@ -95,7 +95,7 @@ All four strategies run inside the same `simulate()` engine (`WithdrawalPolicy` 
   - Fixed strategy: the largest amount that never depletes.
   - Initial % and guardrails: the largest starting rate that never depletes.
   - Current %: not shown, because it cannot deplete.
-- **Monte Carlo.** Every path runs the selected policy, with the same returns, fees and inflation as the deterministic plan.
+- **Monte Carlo.** Every path runs the selected policy, with the same returns, fees and inflation as the deterministic plan. Requests run in a Web Worker with an ID each: only the newest result is shown. If the worker fails to start or crashes, the pending request is recomputed on the main thread exactly once (`src/components/risk/mcRunner.ts`).
 
 Sources for context, not as hard-coded safe rates:
 - Bengen's 4 % rule: https://www.bengenfs.com/the-4-percent-rule/
@@ -116,3 +116,5 @@ The app labels every rate as a hypothetical assumption.
 
 `vercel.json` sets long-lived caching for hashed assets and security headers (CSP, nosniff, frame options).
 Deep links are hash-based (`#/compare`, `#/risk`), and shared calculations use `?s=<base64url JSON, schema v2>`. Neither needs a server rewrite.
+
+**Opening a shared link** never deletes a saved plan by itself. Below the four-plan limit it is added (undoable). At the limit a confirmation dialog asks which saved plan to replace; nothing changes until that choice is confirmed, and Cancel or Escape leaves everything as it was. The link stays in the address bar until the import is decided, so a reload restores the pending dialog once. Malformed or unsupported links are reported and removed from the address bar.
