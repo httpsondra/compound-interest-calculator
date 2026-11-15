@@ -39,8 +39,9 @@ export function solveMonotone(f: (x: number) => number, target: number, upperLim
   const probe = 1000
   const f1 = f(probe)
   const slope = (f1 - f0) / probe
-  if (!(slope > 1e-12)) return { status: 'unreachable' }
-  const guess = (target - f0) / slope
+  // A flat start (e.g. the plan runs dry before the goal year for small inputs, so the balance
+  // stays at 0) is not proof of "unreachable": skip the affine guess and search upwards instead.
+  const guess = slope > 1e-12 ? (target - f0) / slope : NaN
   if (guess >= 0 && guess <= upperLimit && Math.abs(f(guess) - target) <= tol) {
     return { status: 'ok', value: guess }
   }
@@ -49,9 +50,9 @@ export function solveMonotone(f: (x: number) => number, target: number, upperLim
   let hi = Math.max(probe, Number.isFinite(guess) && guess > 0 ? guess : probe)
   let iter = 0
   while (f(hi) < target && iter < 80) {
-    hi *= 2
+    if (hi >= upperLimit) return { status: 'unreachable' }
+    hi = Math.min(upperLimit, hi * 2)
     iter++
-    if (hi > upperLimit) return { status: 'unreachable' }
   }
   for (let i = 0; i < MAX_ITER; i++) {
     const mid = (lo + hi) / 2

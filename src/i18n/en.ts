@@ -1,6 +1,8 @@
 export const en = {
   meta: {
     title: 'InvestCalc — compound interest & investment planner',
+    planHeading: 'Investment plan',
+    description: 'Plan long-term investing with an accurate compound interest calculator: changing contributions over time, goals, inflation, fees, withdrawals, scenario comparison and Monte Carlo. Czech & English. Runs entirely in your browser.',
   },
   app: {
     tagline: 'Investment planner',
@@ -13,6 +15,8 @@ export const en = {
     shareCopied: 'Link copied. It reproduces this exact calculation.',
     shareFailed: 'Could not copy automatically — copy the address from the browser bar.',
     sharedLoaded: 'Loaded a shared calculation. It was added to your scenarios.',
+    sharedFull: 'You already have 4 saved plans. Load the shared calculation in place of “{name}”?',
+    sharedReplace: 'Replace it',
     undo: 'Undo',
     undone: 'Change undone',
     reset: 'Reset',
@@ -163,6 +167,7 @@ export const en = {
     difference: 'Difference in final value',
     paid: 'Fees paid',
     foregone: 'Lost growth on fees',
+    lostWithdrawals: 'With fees the plan also withdraws {value} less in total: your strategy takes its income from a smaller portfolio. This is included in the lost growth.',
     explain:
       'The difference is larger than the fees paid: money taken as fees can no longer compound. Both projections use identical assumptions apart from fees.',
   },
@@ -515,7 +520,7 @@ export const en = {
     volatility: 'Annual volatility',
     volatilityHelp:
       'Standard deviation of annual log returns. Broad equity indices have historically been around 15–20 %; this is an input, not a fact about the future.',
-    expectedReturn: 'Expected return (from your plan)',
+    expectedReturn: 'Median annual return (from your plan)',
     goalProbLabel: 'Chance of reaching the goal',
     simulations: 'Simulations',
     seed: 'Random seed {seed}',
@@ -536,7 +541,7 @@ export const en = {
     pct: '{p}th percentile',
     model: 'Model assumptions',
     modelText:
-      'Monthly returns are drawn independently from a log-normal distribution. Your return input is treated as the median (geometric) annual return, so the median path matches the constant-return projection; the average annual return is then about {arith}. Fat tails, crashes, regime changes and correlations between years are not modelled. Probabilities describe this simplified model, not real markets.',
+      'Monthly returns are drawn independently from a log-normal distribution. Your return input is treated as the median (geometric) annual return, so for a single lump sum the median matches the constant-return projection (with regular deposits or withdrawals it can differ slightly); the average annual return is then about {arith}. Fat tails, crashes, regime changes and correlations between years are not modelled. Probabilities describe this simplified model, not real markets.',
     chartLabel: 'Fan chart of simulated portfolio values.',
   },
   conventions: {

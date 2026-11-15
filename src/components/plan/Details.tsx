@@ -131,14 +131,16 @@ export function GoalCard() {
 }
 
 export function FeeCard() {
-  const { t, f } = useI18n()
+  const { t, f, fill } = useI18n()
   const { scenario: s, computed } = useApp()
   const res = computed.result
   if (!s.feesEnabled || !res || !computed.noFee) return null
   const money = (v: number) => f.money(v, s.currency)
   const diff = computed.noFee.final - res.totals.final
+  // Percentage strategies withdraw from a smaller portfolio when fees apply: that is a cost too.
+  const lostWithdrawals = Math.max(0, computed.noFee.withdrawn - res.totals.withdrawn)
   const paid = res.totals.fees
-  const foregone = diff - paid
+  const foregone = diff + lostWithdrawals - paid
   return (
     <section className="block" aria-labelledby="fees-h">
       <header className="card-head">
@@ -175,6 +177,7 @@ export function FeeCard() {
           <dd>{money(Math.max(0, foregone))}</dd>
         </div>
       </dl>
+      {lostWithdrawals > 0.5 && <p className="note">{fill(t.fees.lostWithdrawals, { value: money(lostWithdrawals) })}</p>}
       <p className="note">{t.fees.explain}</p>
     </section>
   )

@@ -216,6 +216,38 @@ describe('V4.1 edge cases', () => {
   })
 })
 
+describe('V4.2 audit: FI capital is sized for the goal, independent of the withdrawal’s indexing', () => {
+  // Closed form: PV at retirement of 360 monthly-in-advance payments growing g a year, discounted at 5 %.
+  const pv = (first: number, g: number) => {
+    const m = Math.pow(1.05, 1 / 12)
+    let s = 0
+    for (let k = 0; k < 360; k++) s += (first * Math.pow(1 + g, Math.floor(k / 12))) / Math.pow(m, k)
+    return s
+  }
+  it.each([[true, true], [false, true], [true, false], [false, false]])('withdrawal indexed=%s, goal real=%s', (indexed, real) => {
+    const s0 = defaultScenario('CZK')
+    const s: Scenario = { ...s0, horizonYears: 50, timing: 'start', annualReturn: 5, withdrawal: { ...s0.withdrawal, enabled: true, startYear: 21, indexed }, retirement: { enabled: true, income: real ? 40_000 : 40_000 * Math.pow(1.025, 20), real } }
+    const fi = fiAnalysis(s, run(s))!
+    const ref = pv(40_000 * Math.pow(1.025, 20), real ? 0.025 : 0)
+    expect(Math.abs(fi.capital - ref) / ref).toBeLessThan(1e-6)
+  })
+})
+
+describe('V4.2 audit: “with X more a month” really is per month (GF-2)', () => {
+  it('annual contributions get 12 × the monthly delta; same result as a monthly plan', () => {
+    const base = (frequency: 'monthly' | 'annual', amount: number): Scenario => {
+      const s0 = defaultScenario('CZK')
+      return { ...s0, constant: { amount, frequency }, timing: 'start', withdrawal: { ...s0.withdrawal, enabled: true, startYear: 25 }, retirement: { enabled: true, income: 40_000, real: true }, horizonYears: 60 }
+    }
+    const a = base('annual', 60_000) // 5 000 a month, paid yearly
+    const fa = fiAnalysis(a, run(a))!
+    // An explicit check: annual 60 000 + 24 000 must reach the capital in the reported month.
+    const plus = { ...a, constant: { amount: 84_000, frequency: 'annual' as const } }
+    const fp = fiAnalysis(plus, run(plus))!
+    expect(fa.fiMonthWithMore!.month).toBe(fp.fiMonth)
+  })
+})
+
 describe('V4.1 review fixes', () => {
   it('without an income goal there are no goal metrics; the plan is judged by what it pays', () => {
     const s = plan({ initial: 1e9 })
@@ -467,7 +499,14 @@ function expectSameGoals(old: V4, m: Scenario) {
   expect(fb).not.toBeNull()
   const { sustain: sa, ...ka } = fa
   const { sustain: sb, ...kb } = fb!
-  deepClose(ka, kb, 1e-9)
+  // V4.2 audit fix: V4 sized the FI capital of a FIXED plan with the withdrawal's indexing switch
+  // instead of the goal's basis. Where the two agree V4 was right and must match exactly; where
+  // they differ the capital (and everything derived from it) is intentionally corrected.
+  const infl = old.inflationEnabled ? old.inflation / 100 : 0
+  const corrected = old.withdrawal.strategy === 'fixed' && old.withdrawal.indexed !== old.retirement.real && infl !== 0
+  if (corrected) {
+    for (const k of ['strategy', 'startMonth', 'annualAtStart', 'monthlyAtStart', 'method', 'projectedAtStart'] as const) deepClose(ka[k], kb[k], 1e-9)
+  } else deepClose(ka, kb, 1e-9)
   const ca = v4r.incomeCheck(old, ra)
   const cb = incomeCheck(m, rb)
   if (partialOnlyPhase(old)) return

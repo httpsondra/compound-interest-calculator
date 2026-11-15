@@ -3,6 +3,8 @@ import type { Dict } from './en'
 export const cs: Dict = {
   meta: {
     title: 'InvestCalc — kalkulačka složeného úročení a plánovač investic',
+    planHeading: 'Investiční plán',
+    description: 'Plánujte dlouhodobé investování s přesnou kalkulačkou složeného úročení: proměnlivé vklady v čase, cíle, inflace, poplatky, výběry, porovnání scénářů a Monte Carlo. Česky i anglicky. Vše běží ve vašem prohlížeči.',
   },
   app: {
     tagline: 'Plánovač investic',
@@ -15,6 +17,8 @@ export const cs: Dict = {
     shareCopied: 'Odkaz zkopírován. Otevře přesně tento výpočet.',
     shareFailed: 'Odkaz se nepodařilo zkopírovat — zkopírujte adresu z adresního řádku.',
     sharedLoaded: 'Načten sdílený výpočet. Byl přidán mezi vaše scénáře.',
+    sharedFull: 'Máte už 4 uložené plány. Načíst sdílený výpočet místo plánu „{name}“?',
+    sharedReplace: 'Nahradit',
     undo: 'Zpět',
     undone: 'Změna vrácena',
     reset: 'Obnovit',
@@ -129,7 +133,7 @@ export const cs: Dict = {
     timeTo: 'Dosaženo v roce {year}',
     timeToAge: 'Dosaženo v roce {year} (věk {age})',
     timeLabel: 'Se současným plánem',
-    never: 'S tímto plánem nedosaženo ani do 100 let',
+    never: 'S tímto plánem cíle nedosáhnete ani za 100 let',
     requiredConstant: 'Potřebný vklad',
     requiredExtra: 'Navíc každý měsíc',
     requiredLump: 'Nebo jeden vklad navíc dnes',
@@ -164,7 +168,8 @@ export const cs: Dict = {
     withFees: 'S poplatky',
     difference: 'Rozdíl v konečné hodnotě',
     paid: 'Zaplacené poplatky',
-    foregone: 'Ušlé zhodnocení poplatků',
+    foregone: 'Ušlé zhodnocení kvůli poplatkům',
+    lostWithdrawals: 'S poplatky plán navíc vybere celkem o {value} méně: strategie čerpá příjem z menšího portfolia. Je to zahrnuto v ušlém zhodnocení.',
     explain:
       'Rozdíl je větší než zaplacené poplatky: peníze odvedené na poplatcích se už dál nezhodnocují. Obě projekce mají kromě poplatků stejné předpoklady.',
   },
@@ -360,8 +365,8 @@ export const cs: Dict = {
     duringIndexed: 'Během důchodu se renta navyšuje o inflaci ({rate} ročně): v roce {year} plán počítá s {value} měsíčně.',
     duringIndexedShort: 'Během důchodu se renta navyšuje o inflaci ({rate} ročně).',
     duringIndexedShortDown: 'Během důchodu renta sleduje inflaci ({rate} ročně), takže klesá.',
-    duringFlat: 'Během důchodu zůstává {value} měsíčně, takže její kupní síla postupně klesá.',
-    duringFlatDown: 'Během důchodu zůstává {value} měsíčně; při klesajících cenách její kupní síla postupně roste.',
+    duringFlat: 'Během důchodu zůstává částka {value} měsíčně stejná, takže její kupní síla postupně klesá.',
+    duringFlatDown: 'Během důchodu zůstává částka {value} měsíčně stejná; při klesajících cenách její kupní síla postupně roste.',
     duringIndexedDown: 'Během důchodu renta sleduje inflaci ({rate} ročně), takže klesá: v roce {year} plán počítá s {value} měsíčně.',
     duringNoInflation: 'Bez inflace se částka během důchodu nemění.',
     duringGuardNoInflation: 'Bez inflace se výdaje každý rok stanoví z portfolia, v mezích limitů měřených od loňských výdajů.',
@@ -406,7 +411,7 @@ export const cs: Dict = {
     rate: 'Míra výběru',
     payout: 'Výplata',
     presets: 'Ilustrativní míry výběru',
-    presetsNote: 'Hypotetické — ne bezpečné míry',
+    presetsNote: 'Hypotetické hodnoty, nikoli bezpečné míry',
     maxIncrease: 'Max. roční růst',
     maxDecrease: 'Max. roční pokles',
     floor: 'Minimální měsíční příjem (nepovinné)',
@@ -517,7 +522,7 @@ export const cs: Dict = {
     volatility: 'Roční volatilita',
     volatilityHelp:
       'Směrodatná odchylka ročních logaritmických výnosů. Široké akciové indexy měly historicky zhruba 15–20 %; jde o vstup, ne o fakt o budoucnosti.',
-    expectedReturn: 'Očekávaný výnos (z vašeho plánu)',
+    expectedReturn: 'Mediánový roční výnos (z vašeho plánu)',
     goalProbLabel: 'Šance na dosažení cíle',
     simulations: 'Počet simulací',
     seed: 'Náhodné semínko {seed}',
@@ -538,7 +543,7 @@ export const cs: Dict = {
     pct: '{p}. percentil',
     model: 'Předpoklady modelu',
     modelText:
-      'Měsíční výnosy se losují nezávisle z log-normálního rozdělení. Zadaný výnos se bere jako mediánový (geometrický) roční výnos, takže mediánový průběh odpovídá projekci se stálým výnosem; průměrný roční výnos je pak zhruba {arith}. Tlusté chvosty, krachy, změny režimů ani závislost mezi roky se nemodelují. Pravděpodobnosti popisují tento zjednodušený model, ne skutečné trhy.',
+      'Měsíční výnosy se losují nezávisle z log-normálního rozdělení. Zadaný výnos se bere jako mediánový (geometrický) roční výnos, takže u jednorázového vkladu medián odpovídá projekci se stálým výnosem (s pravidelnými vklady či výběry se může mírně lišit); průměrný roční výnos je pak zhruba {arith}. Tlusté chvosty, krachy, změny režimů ani závislost mezi roky se nemodelují. Pravděpodobnosti popisují tento zjednodušený model, ne skutečné trhy.',
     chartLabel: 'Vějířový graf simulovaných hodnot portfolia.',
   },
   conventions: {

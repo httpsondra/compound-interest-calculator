@@ -21,13 +21,24 @@ export default function RiskView() {
   const [running, setRunning] = useState(false)
   const workerRef = useRef<Worker | null>(null)
   const reqId = useRef(0)
+  // Set when the worker cannot load or crashes: the current request is then re-run on the main thread.
+  const [workerFailed, setWorkerFailed] = useState(false)
   const plan = computed.plan
 
   useEffect(() => {
     try {
-      workerRef.current = new Worker(new URL('./mc.worker.ts', import.meta.url), { type: 'module' })
+      const w = new Worker(new URL('./mc.worker.ts', import.meta.url), { type: 'module' })
+      // Attached at creation: a blocked or broken script fails before the first request is sent.
+      w.onerror = (ev) => {
+        ev.preventDefault()
+        w.terminate()
+        if (workerRef.current === w) workerRef.current = null
+        setWorkerFailed(true)
+      }
+      workerRef.current = w
     } catch {
       workerRef.current = null
+      setWorkerFailed(true)
     }
     return () => workerRef.current?.terminate()
   }, [])
@@ -73,6 +84,7 @@ export default function RiskView() {
         w.onerror = (ev) => {
           ev.preventDefault()
           runHere()
+          setWorkerFailed(true)
         }
         w.onmessageerror = runHere
         w.postMessage({ id, input })
@@ -85,7 +97,7 @@ export default function RiskView() {
       }
     }, 220)
     return () => window.clearTimeout(timer)
-  }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real, target != null, incomeMonthly, incomeReal]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plan, vol, sims, seed, goal?.target, goal?.month, goal?.real, target != null, incomeMonthly, incomeReal, workerFailed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const money = (v: number) => f.money(v, s.currency)
   const extra = {

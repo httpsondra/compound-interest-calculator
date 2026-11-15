@@ -88,6 +88,9 @@
 
   --accent: #2563eb;
   --accent-strong: #1d4ed8;
+  /* Fill behind white text (buttons, skip link): ≥ 4.5:1 in both themes. */
+  --accent-fill: #2563eb;
+  --accent-fill-hover: #1d4ed8;
   --accent-text: #1d4ed8;
   --accent-soft: rgba(37, 99, 235, 0.07);
   --accent-soft-2: rgba(37, 99, 235, 0.14);
@@ -100,14 +103,14 @@
   --c-contrib-fill: rgba(176, 132, 58, 0.09);
   --c-real: #0284c7;
   --c-goal: #0b1528;
-  --c-pos: #13803e;
+  --c-pos: #0f6e35;
   --c-pos-soft: rgba(19, 128, 62, 0.08);
   --c-warn: #a65a05;
   --c-warn-soft: rgba(217, 119, 6, 0.09);
   --c-neg: #c42727;
   --c-neg-soft: rgba(220, 38, 38, 0.07);
   --c-grid: rgba(14, 30, 64, 0.06);
-  --c-axis: #74819a;
+  --c-axis: #627089;
   --c-withdraw-band: rgba(217, 119, 6, 0.05);
 
   --series-1: #2563eb;
@@ -149,6 +152,8 @@
 
     --accent: #4f8dff;
     --accent-strong: #2f6ff0;
+    --accent-fill: #2563eb;
+    --accent-fill-hover: #1d4ed8;
     --accent-text: #8fb8ff;
     --accent-soft: rgba(79, 141, 255, 0.1);
     --accent-soft-2: rgba(79, 141, 255, 0.2);
@@ -209,6 +214,8 @@
 
   --accent: #4f8dff;
   --accent-strong: #2f6ff0;
+    --accent-fill: #2563eb;
+    --accent-fill-hover: #1d4ed8;
   --accent-text: #8fb8ff;
   --accent-soft: rgba(79, 141, 255, 0.1);
   --accent-soft-2: rgba(79, 141, 255, 0.2);

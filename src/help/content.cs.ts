@@ -8,6 +8,13 @@ const PER: Record<string, string> = { weekly: 'týden', monthly: 'měsíc', quar
 const EVERY: Record<string, string> = { weekly: 'každý týden', monthly: 'každý měsíc', quarterly: 'každé čtvrtletí', semiannual: 'každé pololetí', annual: 'každý rok' }
 const rate = (c: HelpCtx) => (c.s.annualReturn > 0 ? c.s.annualReturn : 7)
 const infl = (c: HelpCtx) => (c.s.inflationEnabled && c.s.inflation > 0 ? c.s.inflation : 2.5)
+/** Ilustrace používají 2,5 %, když je inflace vypnutá nebo není kladná; řekni, jak se chová vlastní plán. */
+const ownInfl = (c: HelpCtx) =>
+  !c.s.inflationEnabled || c.s.inflation === 0
+    ? ' Jen pro ilustraci: ve vašem plánu je inflace vypnutá, takže částka zůstává stejná.'
+    : c.s.inflation < 0
+      ? ` Jen pro ilustraci: při vaší inflaci ${c.pct(c.s.inflation)} částka každý rok mírně klesá.`
+      : ''
 const monthly = (c: HelpCtx) => (c.s.contribMode === 'constant' && c.s.constant.amount > 0 ? c.s.constant.amount : baseAmount(c.s.currency, 5000))
 const roky = (n: number) => `${n} ${n === 1 ? 'rok' : n >= 2 && n <= 4 ? 'roky' : 'let'}`
 
@@ -257,7 +264,7 @@ export const helpCs: HelpContent = {
     title: 'Každoročně navyšovat rentu o inflaci',
     what: 'Jednou ročně zvýší váš příjem v důchodu o inflaci, takže si během důchodu zachová kupní sílu.',
     how: 'Týká se jen let po začátku výběrů. Jak částka roste před důchodem, určuje volba „V dnešních cenách / Při začátku výběrů“.',
-    example: `${c.money(baseAmount(c.s.currency, 40_000))} měsíčně při inflaci ${c.pct(infl(c))} bude ve druhém roce ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))}.`,
+    example: `${c.money(baseAmount(c.s.currency, 40_000))} měsíčně při inflaci ${c.pct(infl(c))} bude ve druhém roce ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))}.${ownInfl(c)}`,
   }),
   withdrawalStop: () => ({
     title: 'Ukončit vklady',
@@ -307,13 +314,13 @@ export const helpCs: HelpContent = {
     title: 'Inflace před důchodem',
     what: 'Mezi dneškem a začátkem výběrů se ceny mění podle zadané inflace.',
     how: 'Navyšuje se o ni jen částka zadaná v dnešních cenách. Procentní strategie ji nepotřebují: jejich částka už vychází z odhadované budoucí hodnoty portfolia.',
-    example: `Při ${c.pct(infl(c))} ročně odpovídá ${c.money(baseAmount(c.s.currency, 40_000))} dnes zhruba ${c.money(baseAmount(c.s.currency, 40_000) / realOf(1, 32, infl(c)))} za 32 let.`,
+    example: `Při ${c.pct(infl(c))} ročně odpovídá ${c.money(baseAmount(c.s.currency, 40_000))} dnes zhruba ${c.money(baseAmount(c.s.currency, 40_000) / realOf(1, 32, infl(c)))} za 32 let.${ownInfl(c)}`,
   }),
   inflationDuring: (c) => ({
     title: 'Inflace během důchodu',
     what: 'Zda váš příjem po začátku výběrů každý rok roste.',
     how: 'Zapnuto: příjem si zachová kupní sílu. Vypnuto: částka zůstává stejná a při rostoucích cenách si za ni každý rok koupíte o něco méně. „% z aktuální hodnoty“ tento přepínač nemá — sleduje portfolio.',
-    example: `${c.money(baseAmount(c.s.currency, 40_000))} → 2. rok: ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} → 3. rok: ${c.money(nextYearContribution(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)), infl(c)))} měsíčně.`,
+    example: `${c.money(baseAmount(c.s.currency, 40_000))} → 2. rok: ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} → 3. rok: ${c.money(nextYearContribution(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)), infl(c)))} měsíčně.${ownInfl(c)}`,
   }),
   desiredVsActual: (c) => {
     const t = c.computed.result?.totals
@@ -559,7 +566,7 @@ export const helpCs: HelpContent = {
     more: 'Měsíční výnosy se losují nezávisle z log-normálního rozdělení kolem očekávaného výnosu. Vklady, poplatky, výběry i inflace jsou stejné jako ve vašem plánu.',
   }),
   riskReturn: (c) => ({
-    title: 'Očekávaný výnos v simulaci',
+    title: 'Mediánový výnos v simulaci',
     what: `Simulace bere ${c.pct(c.s.annualReturn)} z vašeho plánu jako typický (mediánový) roční výnos.`,
     how: 'Změníte ho v sekci Plán. Polovina simulovaných průběhů skončí nad mediánem, polovina pod ním.',
   }),

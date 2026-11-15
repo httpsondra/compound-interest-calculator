@@ -7,6 +7,13 @@ import { incomeTarget } from '../model/scenario'
 const PER: Record<string, string> = { weekly: 'week', monthly: 'month', quarterly: 'quarter', semiannual: 'half-year', annual: 'year' }
 const rate = (c: HelpCtx) => (c.s.annualReturn > 0 ? c.s.annualReturn : 7)
 const infl = (c: HelpCtx) => (c.s.inflationEnabled && c.s.inflation > 0 ? c.s.inflation : 2.5)
+/** Illustrations use 2.5 % when the user's inflation is off or not positive; say how their own plan behaves. */
+const ownInfl = (c: HelpCtx) =>
+  !c.s.inflationEnabled || c.s.inflation === 0
+    ? ' Illustration only: with inflation off in your plan, the amount stays the same.'
+    : c.s.inflation < 0
+      ? ` Illustration only: at your ${c.pct(c.s.inflation)} the amount falls slightly each year.`
+      : ''
 const monthly = (c: HelpCtx) => (c.s.contribMode === 'constant' && c.s.constant.amount > 0 ? c.s.constant.amount : baseAmount(c.s.currency, 5000))
 const yearsText = (n: number) => `${n} ${n === 1 ? 'year' : 'years'}`
 
@@ -257,7 +264,7 @@ export const helpEn: HelpContent = {
     title: 'Increase income with inflation every year',
     what: 'Raises your retirement income once a year by the inflation rate, so it keeps its purchasing power during retirement.',
     how: 'This only affects the years after withdrawals start. How the amount grows before retirement is decided by “In today’s money / At retirement”.',
-    example: `${c.money(baseAmount(c.s.currency, 40_000))} a month with ${c.pct(infl(c))} inflation becomes ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} in the second year.`,
+    example: `${c.money(baseAmount(c.s.currency, 40_000))} a month with ${c.pct(infl(c))} inflation becomes ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} in the second year.${ownInfl(c)}`,
   }),
   withdrawalStop: () => ({
     title: 'Stop contributions',
@@ -308,13 +315,13 @@ export const helpEn: HelpContent = {
     title: 'Inflation before retirement',
     what: 'Prices change by your inflation assumption between today and the start of withdrawals.',
     how: 'Only an amount entered in today’s money is raised for it. Percentage strategies don’t need it: their amount already comes from the projected future portfolio.',
-    example: `At ${c.pct(infl(c))} a year, ${c.money(baseAmount(c.s.currency, 40_000))} today ≈ ${c.money(baseAmount(c.s.currency, 40_000) / realOf(1, 32, infl(c)))} in 32 years.`,
+    example: `At ${c.pct(infl(c))} a year, ${c.money(baseAmount(c.s.currency, 40_000))} today ≈ ${c.money(baseAmount(c.s.currency, 40_000) / realOf(1, 32, infl(c)))} in 32 years.${ownInfl(c)}`,
   }),
   inflationDuring: (c) => ({
     title: 'Inflation during retirement',
     what: 'Whether your income rises each year after withdrawals have started.',
     how: 'On: income keeps its purchasing power. Off: the amount stays the same and, with rising prices, buys a little less every year. “% of current portfolio” has no such switch — it follows the portfolio.',
-    example: `${c.money(baseAmount(c.s.currency, 40_000))} → year 2: ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} → year 3: ${c.money(nextYearContribution(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)), infl(c)))} a month.`,
+    example: `${c.money(baseAmount(c.s.currency, 40_000))} → year 2: ${c.money(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)))} → year 3: ${c.money(nextYearContribution(nextYearContribution(baseAmount(c.s.currency, 40_000), infl(c)), infl(c)))} a month.${ownInfl(c)}`,
   }),
   desiredVsActual: (c) => {
     const t = c.computed.result?.totals
@@ -560,7 +567,7 @@ export const helpEn: HelpContent = {
     more: 'Monthly returns are drawn independently from a log-normal distribution around your expected return. Contributions, fees, withdrawals and inflation are the same as in your plan.',
   }),
   riskReturn: (c) => ({
-    title: 'Expected return in the simulation',
+    title: 'Median return in the simulation',
     what: `The simulation uses your plan’s ${c.pct(c.s.annualReturn)} as the typical (median) yearly return.`,
     how: 'Change it in the Plan view. Half of the simulated paths end above the median, half below.',
   }),

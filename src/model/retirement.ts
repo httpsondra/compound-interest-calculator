@@ -173,7 +173,9 @@ function capitalForFixed(s: Scenario, annualAtStart: number, months: number): nu
     streams: [],
     lumpSums: [],
     fees: { ...p.fees, entryRate: 0, fixedPerDeposit: 0 },
-    withdrawal: { ...w, startMonth: 0, endMonth: Infinity, amount: annualAtStart / perYear, preIndexRate: 0, policy: { kind: 'fixed' } },
+    // Sized for the GOAL: a goal in today's money keeps its purchasing power every year, a
+    // nominal goal stays flat — independent of how the planned withdrawal is indexed.
+    withdrawal: { ...w, startMonth: 0, endMonth: Infinity, amount: annualAtStart / perYear, indexRate: s.retirement.real ? inflationRate(s) : 0, preIndexRate: 0, policy: { kind: 'fixed' } },
   })
   // Find the smallest capital with no depletion: survival is monotone in capital.
   const ok = (c: number) => simulate(sub(c), { lean: true }).totals.depletedAtMonth === null
@@ -229,8 +231,11 @@ export function fiAnalysis(s: Scenario, res: SimResult): FiAnalysis | null {
   let fiMonthWithMore: FiAnalysis['fiMonthWithMore']
   const delta = scaledAmount(2000, s.currency)
   {
+    // `delta` is MONTHLY (the card says "a month"); a quarterly/annual contribution gets its equivalent.
+    // Schedule mode adds a separate monthly stream, so the delta is used as it is.
     const current = s.contribMode === 'constant' ? s.constant.amount : 0
-    const more = simulate(extendPlan(withoutWithdrawals(contributionVariable(s)(current + delta), s)), { lean: true })
+    const step = s.contribMode === 'constant' ? delta * (12 / PER_YEAR[s.constant.frequency]) : delta
+    const more = simulate(extendPlan(withoutWithdrawals(contributionVariable(s)(current + step), s)), { lean: true })
     let m2: number | null = null
     for (let m = 0; m < more.balances.length; m++) {
       if (Number.isFinite(capital) && more.balances[m] >= capitalAt(m)) {

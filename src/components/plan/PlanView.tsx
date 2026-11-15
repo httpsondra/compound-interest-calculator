@@ -31,6 +31,7 @@ export function PlanView({ onReset, onRetirement }: { onReset: () => void; onRet
 
   return (
     <div className="plan">
+      <h1 className="sr-only">{t.meta.planHeading}</h1>
       <div className="plan-hero">
         <ResultsHero heroRef={heroRef} />
       </div>

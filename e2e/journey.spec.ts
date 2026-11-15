@@ -131,6 +131,7 @@ test('invalid input shows an accessible error instead of NaN', async ({ page }) 
 })
 
 test('no horizontal overflow on narrow screens, all views, both themes', async ({ page }) => {
+  test.setTimeout(120_000)
   for (const scheme of ['dark', 'light'] as const) {
     await page.emulateMedia({ colorScheme: scheme })
     for (const width of [320, 375, 390, 768]) {
@@ -141,11 +142,18 @@ test('no horizontal overflow on narrow screens, all views, both themes', async (
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
         expect(overflow, `overflow at ${width}px ${scheme} ${hash || 'plan'}`).toBeLessThanOrEqual(0)
       }
+      // Retirement with withdrawals on (charts rendered): the paired charts must fit (V4.2 audit P1-1).
+      await page.goto('/?lang=cs#/retirement')
+      const start = page.getByRole('button', { name: 'Naplánovat výběry' })
+      if (await start.isVisible()) await start.click()
+      await page.locator('.paired').first().scrollIntoViewIfNeeded()
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+      expect(overflow, `retirement charts overflow at ${width}px ${scheme}`).toBeLessThanOrEqual(0)
     }
   }
 })
 
-test('opening a share link with a full scenario list is undoable', async ({ page }) => {
+test('opening a share link with a full scenario list asks first and is undoable', async ({ page }) => {
   await page.getByRole('link', { name: 'Compare' }).click()
   for (const v of ['Return +1 pp', 'Return −1 pp', '+5 years']) {
     await page.getByRole('button', { name: 'Create a variant' }).click()
@@ -164,6 +172,8 @@ test('opening a share link with a full scenario list is undoable', async ({ page
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   const shared = await page.evaluate(() => (window as unknown as { __copied: string }).__copied)
   await page.goto(shared.replace('#/compare', '') + '#/compare')
+  // The list is full: the app asks before replacing anything (V4.2 audit PS-1).
+  await page.getByRole('button', { name: 'Replace it' }).click()
   await expect(page.getByText(/Loaded a shared calculation/)).toBeVisible()
   await expect(page.locator('.scen')).toHaveCount(4)
   await page.getByRole('status').getByRole('button', { name: 'Undo' }).click()
@@ -254,4 +264,33 @@ test('withdrawal plan headline shows value at withdrawal start, not a bare €0'
   await expect(page.locator('.hero-label')).toContainText('Value when withdrawals begin')
   await expect(page.locator('.status-line')).toBeVisible()
   await expect(page.locator('.hero-stats')).toContainText('Ending value')
+})
+
+test('a share link never silently deletes a saved plan when the list is full (V4.2 audit PS-1)', async ({ page }) => {
+  const mk = (id: string, name: string) => ({ v: 4, id, name, currency: 'EUR' })
+  await page.addInitScript((docs) => {
+    if (!sessionStorage.getItem('seeded')) {
+      localStorage.setItem('investcalc.v2.scenarios', JSON.stringify({ activeId: 'd', scenarios: docs }))
+      sessionStorage.setItem('seeded', '1')
+    }
+  }, [mk('a', 'Mine a'), mk('b', 'Mine b'), mk('c', 'Mine c'), mk('d', 'Mine d')])
+  const token = btoa(JSON.stringify({ sv: 2, s: { v: 4, name: 'Shared' } })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  await page.goto(`/?lang=en&s=${token}#/compare`)
+  await expect(page.getByText(/You already have 4 saved plans/)).toBeVisible()
+  // Nothing is deleted until the user decides — not even after the usual toast lifetime.
+  await page.waitForTimeout(7000)
+  await expect(page.getByText(/You already have 4 saved plans/)).toBeVisible()
+  await expect(page.locator('.scen-name')).toHaveCount(4)
+  await page.getByRole('button', { name: 'Replace it' }).click()
+  await expect(page.getByText(/Loaded a shared calculation/)).toBeVisible()
+  const names = await page.locator('.scen-name').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value))
+  expect(names).toContain('Shared')
+  expect(names).not.toContain('Mine a')
+})
+
+test('Monte Carlo falls back to the main thread when the worker cannot load (V4.2 audit MC-1)', async ({ page }) => {
+  await page.route(/mc\.worker/, (r) => r.abort())
+  await page.goto('/?lang=en#/risk')
+  await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 15_000 })
+  await expect(page.locator('.risk .tiles, .tiles').first()).toBeVisible()
 })

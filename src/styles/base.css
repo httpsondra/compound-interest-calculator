@@ -126,7 +126,7 @@ table,
   z-index: 100;
   padding: 10px 16px;
   border-radius: var(--r-md);
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--text-on-accent);
   font-weight: 600;
   text-decoration: none;

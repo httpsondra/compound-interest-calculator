@@ -56,11 +56,11 @@ export default function App() {
   const toastId = useRef(0)
   const store = useStore(() => initialDoc(lang))
   const i18n = useMemo(() => createI18n(lang), [lang])
-  const { t } = i18n
+  const { t, fill } = i18n
 
-  const toast = useCallback((text: string, action?: ToastMsg['action']) => {
+  const toast = useCallback((text: string, action?: ToastMsg['action'], sticky = false) => {
     const id = ++toastId.current
-    setToasts((xs) => [...xs.slice(-2), { id, text, action }])
+    setToasts((xs) => [...xs.slice(-2), { id, text, action, sticky }])
   }, [])
   const dismiss = useCallback((id: number) => setToasts((xs) => xs.filter((x) => x.id !== id)), [])
 
@@ -68,23 +68,38 @@ export default function App() {
     const sc = pendingShared
     if (!sc) return
     pendingShared = null
-    // Add the shared scenario as an undoable step. When the list is full the
-    // oldest non-active scenario makes room — Undo brings it back.
-    store.setDoc((d) => {
-      const others = d.scenarios.filter((x) => x.id !== sc.id)
-      while (others.length >= MAX_SCENARIOS) {
-        const i = others.findIndex((x) => x.id !== d.activeId)
-        others.splice(i >= 0 ? i : 0, 1)
-      }
-      return { scenarios: [...others, sc], activeId: sc.id }
-    })
-    toast(t.app.sharedLoaded, { label: t.app.undo, run: store.undo })
+    // Add the shared scenario as an undoable step. A link from someone else must never delete
+    // saved work on its own: when the list is full the user decides whether to replace a plan.
+    const add = (evict: boolean) =>
+      store.setDoc((d) => {
+        const others = d.scenarios.filter((x) => x.id !== sc.id)
+        while (evict && others.length >= MAX_SCENARIOS) {
+          const i = others.findIndex((x) => x.id !== d.activeId)
+          others.splice(i >= 0 ? i : 0, 1)
+        }
+        return { scenarios: [...others, sc], activeId: sc.id }
+      })
+    const full = store.doc.scenarios.filter((x) => x.id !== sc.id).length >= MAX_SCENARIOS
+    if (!full) {
+      add(false)
+      toast(t.app.sharedLoaded, { label: t.app.undo, run: store.undo })
+      return
+    }
+    const oldest = store.doc.scenarios.find((x) => x.id !== store.doc.activeId) ?? store.doc.scenarios[0]
+    toast(fill(t.app.sharedFull, { name: oldest.name || t.scenario.untitled }), {
+      label: t.app.sharedReplace,
+      run: () => {
+        add(true)
+        toast(t.app.sharedLoaded, { label: t.app.undo, run: store.undo })
+      },
+    }, true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Language: <html lang>, title, persistence
   useEffect(() => {
     document.documentElement.lang = lang
     document.title = t.meta.title
+    document.querySelector('meta[name="description"]')?.setAttribute('content', t.meta.description)
     try {
       localStorage.setItem('investcalc.lang', lang)
     } catch {
