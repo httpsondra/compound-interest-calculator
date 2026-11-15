@@ -3,6 +3,18 @@ import { expect, test, type Page } from '@playwright/test'
 const heroValue = async (page: Page) =>
   ((await page.locator('.hero-value').textContent()) ?? '').replace(/^.*?:\s*/, '').trim()
 
+/** The hero follows a deferred value; read it once it has stopped changing. */
+const stableHero = async (page: Page) => {
+  let prev = await heroValue(page)
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(150)
+    const now = await heroValue(page)
+    if (now === prev) return now
+    prev = now
+  }
+  return prev
+}
+
 async function typeInto(page: Page, label: string | RegExp, value: string) {
   const input = page.getByRole('textbox', { name: label, exact: typeof label === 'string' })
   await input.click()
@@ -21,7 +33,7 @@ test('reference case B: 100 000 at 10 % for one year is exactly 110 000', async 
   await typeInto(page, 'Initial investment', '100000')
   await typeInto(page, 'Regular contribution – Amount', '0')
   await typeInto(page, 'Investment horizon – Years', '1')
-  await typeInto(page, 'Expected annual return', '10')
+  await typeInto(page, 'Annual return', '10')
   await expect.poll(() => heroValue(page)).toBe('€110,000')
 })
 
@@ -39,6 +51,7 @@ test('full planning journey stays consistent across chart, cards, table, languag
   await expect(page.getByText(/no contributions are planned/i)).toHaveCount(0)
 
   // Goal
+  await page.getByRole('button', { name: /^Advanced settings/ }).click()
   await page.getByRole('button', { name: /Financial goal/ }).click()
   await page.getByRole('switch', { name: 'Set a target value' }).click()
   await typeInto(page, 'Target value', '500k')
@@ -49,6 +62,7 @@ test('full planning journey stays consistent across chart, cards, table, languag
   expect(value).toMatch(/^€[\d,]+$/)
 
   // Table last row equals the hero value
+  await page.getByRole('tab', { name: 'Yearly breakdown' }).click()
   await page.getByRole('button', { name: 'Show yearly breakdown' }).click()
   const lastEnd = page.locator('.ytable tbody tr').last().locator('td.col-end')
   await expect(lastEnd).toHaveText(value)
@@ -86,8 +100,8 @@ test('share link reproduces the calculation in a fresh browser', async ({ page, 
   })
   await page.reload()
   await typeInto(page, 'Initial investment', '25000')
-  await typeInto(page, 'Expected annual return', '5.5')
-  const value = await heroValue(page)
+  await typeInto(page, 'Annual return', '5.5')
+  const value = await stableHero(page)
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   await expect(page.getByText(/Link copied/)).toBeVisible()
   const link = await page.evaluate(() => (window as unknown as { __copied: string }).__copied)
@@ -122,7 +136,7 @@ test('compare and risk views work', async ({ page }) => {
 })
 
 test('invalid input shows an accessible error instead of NaN', async ({ page }) => {
-  const input = page.getByRole('textbox', { name: 'Expected annual return', exact: true })
+  const input = page.getByRole('textbox', { name: 'Annual return', exact: true })
   await input.click()
   await input.press('ControlOrMeta+a')
   await input.pressSequentially('abc')
@@ -186,6 +200,7 @@ test.describe('currency', () => {
     })
     await page.reload()
     await page.getByRole('radio', { name: /USD/ }).click()
+    await page.getByRole('tab', { name: 'Yearly breakdown' }).click()
     await page.getByRole('button', { name: 'Download CSV' }).click()
     await expect.poll(() => page.evaluate(() => (window as unknown as { __csv?: string }).__csv ?? '')).toContain('End value (USD)')
     const csv = await page.evaluate(() => (window as unknown as { __csv: string }).__csv)

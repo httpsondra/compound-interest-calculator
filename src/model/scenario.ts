@@ -211,6 +211,17 @@ export function scheduleStreams(s: Scenario): ContributionStream[] {
   return out
 }
 
+/**
+ * A contribution schedule that ends before the horizon is only a problem when the user did not
+ * mean it. With "stop contributions when withdrawals begin" the contributions are SUPPOSED to end at
+ * the first withdrawal year, so a schedule that covers every year before that has no unintended gap.
+ * Returns true when the years after `covered` are an intended consequence of the user's settings.
+ */
+export function contributionEndIsIntended(s: Scenario, covered: number): boolean {
+  const w = s.withdrawal
+  return w.enabled && w.stopContributions && covered >= w.startYear - 1
+}
+
 export function inflationRate(s: Scenario): number {
   return s.inflationEnabled ? s.inflation / 100 : 0
 }
@@ -354,7 +365,8 @@ export function validateScenario(s: Scenario): Issue[] {
     out.push({ code: 'ageRange', severity: 'error', field: 'startAge' })
   if (s.contribMode === 'schedule' && H >= 1) {
     const covered = s.periods.reduce((a, p) => a + p.years, 0)
-    if (covered < years) out.push({ code: 'scheduleShort', severity: 'warning', field: 'periods', params: { year: covered + 1 } })
+    if (covered < years && !contributionEndIsIntended(s, covered))
+      out.push({ code: 'scheduleShort', severity: 'warning', field: 'periods', params: { year: covered + 1 } })
     if (covered > years) out.push({ code: 'scheduleLong', severity: 'warning', field: 'periods', params: { year: years } })
   }
   if (s.lumpSums.some((l) => (l.year - 1) * 12 >= H))

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useI18n } from '../../i18n'
 import { PER_YEAR, type Frequency } from '../../engine/types'
-import { FREQUENCIES, horizonYearsCeil, periodRanges, scaledAmount } from '../../model/scenario'
+import { FREQUENCIES, contributionEndIsIntended, horizonYearsCeil, periodRanges, scaledAmount } from '../../model/scenario'
 import { addPeriod, extendTo, movePeriod, removePeriod, setEndYear, splitPeriod, trimTo } from '../../model/timeline'
 import { useApp } from '../../state/context'
 import { Icon } from '../ui/Icon'
@@ -190,7 +190,7 @@ export function Timeline() {
         })}
       </ol>
 
-      {covered < H && (
+      {covered < H && !contributionEndIsIntended(s, covered) && (
         <div className="inline-warn" role="status">
           <Icon name="warning" size={15} />
           <span>

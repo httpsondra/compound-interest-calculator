@@ -87,6 +87,9 @@ export const en = {
       'Raises every contribution at each plan anniversary. "With inflation" keeps contributions constant in today’s money; "None" keeps them fixed in nominal terms, so their real value erodes.',
     growthRate: 'Increase per year',
     more: 'More options',
+    returnShort: 'Annual return',
+    advanced: 'Advanced settings',
+    advancedHint: 'Inflation, fees, withdrawals, goal…',
     sliderLabel: '{label} slider',
   },
   freq: {
@@ -271,6 +274,19 @@ export const en = {
     hint: 'Hover, tap or use the arrow keys to inspect values.',
     toggle: 'Show {series}',
     label: 'Chart of portfolio value over {years}. Final value {value}.',
+  },
+  hl: {
+    title: 'Highlights',
+    retirement: 'Retirement income',
+    startsAt: 'Starts at',
+    lowest: 'Lowest modeled',
+    change: '{pct} {dir} the start',
+    below: 'below',
+    above: 'above',
+  },
+  analysis: {
+    title: 'Detailed analysis',
+    hint: 'Goal, fees, sensitivity, yearly breakdown and more',
   },
   milestones: {
     title: 'Milestones',

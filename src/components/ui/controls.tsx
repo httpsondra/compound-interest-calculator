@@ -172,6 +172,7 @@ export function Disclosure({
   defaultOpen = false,
   active = false,
   id,
+  className,
 }: {
   title: string
   summary?: ReactNode
@@ -180,12 +181,13 @@ export function Disclosure({
   defaultOpen?: boolean
   active?: boolean
   id?: string
+  className?: string
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const autoId = useId()
   const panelId = `${id ?? autoId}-panel`
   return (
-    <section className={`disc${open ? ' is-open' : ''}${active ? ' is-active' : ''}`} id={id}>
+    <section className={`disc${open ? ' is-open' : ''}${active ? ' is-active' : ''}${className ? ` ${className}` : ''}`} id={id}>
       <h3 className="disc-h">
         <button type="button" className="disc-btn" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
           {icon && <span className="disc-icon">{icon}</span>}

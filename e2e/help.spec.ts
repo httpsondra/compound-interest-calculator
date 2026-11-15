@@ -2,6 +2,12 @@ import { expect, test, type Page } from '@playwright/test'
 
 const pop = (page: Page) => page.locator('.help-pop')
 
+/** Advanced settings is one collapsed entry; open it (once) before using anything inside. */
+async function openAdvanced(page: Page) {
+  const b = page.getByRole('button', { name: /^Advanced settings/ })
+  if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click()
+}
+
 async function expectInViewport(page: Page) {
   const box = await pop(page).boundingBox()
   const vp = page.viewportSize()!
@@ -22,7 +28,7 @@ test.describe('desktop pointer and keyboard', () => {
   test.skip(({ isMobile }) => isMobile, 'pointer hover is desktop-only')
 
   test('hover opens, leaving closes; click pins until Escape', async ({ page }) => {
-    const btn = page.getByRole('button', { name: 'About “Expected annual return”' })
+    const btn = page.getByRole('button', { name: 'About “Annual return”' })
     await btn.hover()
     await expect(pop(page)).toBeVisible()
     await expect(pop(page)).toContainText('Expected annual return')
@@ -39,10 +45,10 @@ test.describe('desktop pointer and keyboard', () => {
   })
 
   test('keyboard: Enter opens and focuses the explanation, Escape returns focus', async ({ page }) => {
-    const btn = page.getByRole('button', { name: 'About “Initial investment”' })
+    const btn = page.getByRole('button', { name: 'About “Currency”' })
     await btn.focus()
     await page.keyboard.press('Enter')
-    const dialog = page.getByRole('dialog', { name: 'Initial investment' })
+    const dialog = page.getByRole('dialog', { name: 'Currency' })
     await expect(dialog).toBeVisible()
     await expect(dialog).toBeFocused()
     await expect(btn).toHaveAttribute('aria-expanded', 'true')
@@ -52,12 +58,12 @@ test.describe('desktop pointer and keyboard', () => {
   })
 
   test('only one explanation is open at a time; Learn more expands', async ({ page }) => {
-    await page.getByRole('button', { name: 'About “Expected annual return”' }).click()
+    await page.getByRole('button', { name: 'About “Annual return”' }).click()
     await expect(pop(page)).toHaveCount(1)
-    await page.getByRole('button', { name: 'About “Initial investment”' }).click()
+    await page.getByRole('button', { name: 'About “Currency”' }).click()
     await expect(pop(page)).toHaveCount(1)
-    await expect(pop(page)).toContainText('Initial investment')
-    await page.getByRole('button', { name: 'About “Expected annual return”' }).click()
+    await expect(pop(page)).toContainText('Currency')
+    await page.getByRole('button', { name: 'About “Annual return”' }).click()
     const more = pop(page).getByRole('button', { name: 'Learn more' })
     await more.click()
     await expect(pop(page)).toContainText('(1 + R)^(1/12)')
@@ -66,6 +72,7 @@ test.describe('desktop pointer and keyboard', () => {
 
   test('popovers inside the sticky sidebar are not clipped', async ({ page }) => {
     // Open "More options" → Fees and its annual fee help, deep inside the scrolling sidebar.
+    await openAdvanced(page)
     await page.getByRole('button', { name: /^Fees/ }).click()
     await page.getByRole('switch', { name: 'Include fees' }).click()
     await page.getByRole('button', { name: 'About “Annual fee (on balance)”' }).click()
@@ -85,7 +92,7 @@ test('touch / tap: opens, stays within the viewport, closes on outside tap and c
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 740 })
     // The "Hypothetical projection" tag sits at the right edge on wider screens; use a stat at the right column too.
-    const btn = page.getByRole('button', { name: 'About “Investment gain”' })
+    const btn = page.getByRole('button', { name: 'About “Annual return”' })
     await btn.click()
     await expect(pop(page)).toBeVisible()
     await expectInViewport(page)
@@ -99,17 +106,20 @@ test('touch / tap: opens, stays within the viewport, closes on outside tap and c
 
 test('content follows language and currency', async ({ page }) => {
   await page.getByRole('radio', { name: /USD/ }).click()
-  await page.getByRole('button', { name: 'About “Expected annual return”' }).click()
+  await page.getByRole('button', { name: 'About “Annual return”' }).click()
   await expect(pop(page)).toContainText(/\$4,000 would grow to \$4,280/)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: /Čeština/ }).click()
-  await page.getByRole('button', { name: 'Vysvětlení: Očekávané roční zhodnocení' }).click()
+  await page.getByRole('button', { name: 'Vysvětlení: Roční výnos' }).click()
   await expect(pop(page)).toContainText('Očekávané roční zhodnocení')
   await expect(pop(page)).toContainText(/4\s000\s\$/)
 })
 
 test('help is available across Plan, Compare and Risk', async ({ page }) => {
-  for (const name of ['Projected value', 'Contributed', 'Growth over time', 'Return sensitivity', 'Yearly breakdown']) {
+  await expect(page.getByRole('button', { name: 'About “Projected value”' })).toHaveCount(1)
+  // The detailed analyses sit behind tabs; their help appears when the tab is opened.
+  for (const name of ['Return sensitivity', 'Yearly breakdown']) {
+    await page.getByRole('tab', { name }).click()
     await expect(page.getByRole('button', { name: `About “${name}”` })).toHaveCount(1)
   }
   await page.getByRole('link', { name: 'Compare' }).click()

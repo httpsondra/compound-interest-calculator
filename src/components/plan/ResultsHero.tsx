@@ -43,8 +43,7 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
   if (ws) {
     const dep = tot.depletedAtMonth
     const depYear = dep != null ? Math.ceil(dep / 12) : null
-    const showPeak = ws.peak > ws.startValue * 1.005
-    // Percentage-of-portfolio policies rarely hit zero even when income collapses:
+      // Percentage-of-portfolio policies rarely hit zero even when income collapses:
     // judge them by the income they pay, not by whether the balance stays positive.
     const incomeBased = s.withdrawal.strategy === 'currentPct' || s.withdrawal.strategy === 'guardrails'
     const check = incomeBased ? incomeCheck(s, res) : null
@@ -58,10 +57,7 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
             </h2>
             <HelpTip topic="withdrawalStartValue" label={t.results.atWithdrawalStart} />
           </div>
-          <span className="tag">
-            {t.results.hypothetical}
-            <HelpTip topic="assumptions" label={t.results.hypothetical} />
-          </span>
+          <span className="tag">{t.results.hypothetical}</span>
         </div>
         <p className="hero-value" aria-live="polite" aria-atomic="true">
           <span className="sr-only">{t.results.atWithdrawalStart}: </span>
@@ -96,38 +92,20 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
         )}
         <dl className="hero-stats">
           <div className="stat">
-            <dt>
-              {t.results.withdrawn}
-              <HelpTip topic="withdrawn" label={t.results.withdrawn} />
-            </dt>
+            <dt>{t.results.withdrawn}</dt>
             <dd>{money(tot.withdrawn)}</dd>
           </div>
           <div className="stat">
-            <dt>
-              {t.results.endValue}
-              <HelpTip topic="endValue" label={t.results.endValue} />
-            </dt>
+            <dt>{t.results.endValue}</dt>
             <dd className={dep != null ? 'is-neg' : undefined}>{money(tot.final)}</dd>
           </div>
           <div className="stat">
             <dt>
               <span className="dot dot--contrib" aria-hidden="true" />
               {t.results.contributed}
-              <HelpTip topic="contributed" label={t.results.contributed} />
             </dt>
             <dd>{money(tot.contributed)}</dd>
           </div>
-          {showPeak && (
-            <div className="stat">
-              <dt>
-                {t.results.peak}
-                <HelpTip topic="peak" label={t.results.peak} />
-              </dt>
-              <dd>
-                {money(ws.peak)} <span className="stat-sub">{yearAge(Math.max(0, ws.peakMonth - 1))}</span>
-              </dd>
-            </div>
-          )}
         </dl>
       </section>
     )
@@ -138,7 +116,6 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
   const gainPositive = tot.netGain >= 0
   const showComposition = tot.final > 0
   const contribShare = showComposition ? Math.min(1, Math.max(0, tot.contributed / Math.max(tot.final, tot.contributed))) : 0
-  const gainShare = tot.final > 0 ? tot.netGain / tot.final : 0
 
   return (
     <section className={`hero${stale ? ' is-stale' : ''}`} ref={heroRef} aria-labelledby="hero-h">
@@ -149,10 +126,7 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
           </h2>
           <HelpTip topic="projected" label={t.results.projected} />
         </div>
-        <span className="tag">
-          {t.results.hypothetical}
-          <HelpTip topic="assumptions" label={t.results.hypothetical} />
-        </span>
+        <span className="tag">{t.results.hypothetical}</span>
       </div>
       <p className="hero-value" aria-live="polite" aria-atomic="true">
         <span className="sr-only">{t.results.projected}: </span>
@@ -185,7 +159,6 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
           <dt>
             <span className="dot dot--contrib" aria-hidden="true" />
             {t.results.contributed}
-            <HelpTip topic="contributed" label={t.results.contributed} />
           </dt>
           <dd>{money(tot.contributed)}</dd>
         </div>
@@ -193,16 +166,8 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
           <dt>
             <span className="dot dot--value" aria-hidden="true" />
             {s.feesEnabled ? t.results.gainAfterFees : t.results.gain}
-            <HelpTip topic="gain" label={t.results.gain} />
           </dt>
           <dd className={gainPositive ? 'is-pos' : 'is-neg'}>{f.money(tot.netGain, s.currency, { signed: true })}</dd>
-        </div>
-        <div className="stat">
-          <dt>
-            {t.results.gainShare}
-            <HelpTip topic="gainShare" label={t.results.gainShare} />
-          </dt>
-          <dd>{tot.final > 0 ? f.pct(gainShare * 100, 0) : '—'}</dd>
         </div>
       </dl>
     </section>

@@ -28,6 +28,7 @@
       try {
         var th = localStorage.getItem('investcalc.theme')
         if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th)
+        else if (!th) document.documentElement.setAttribute('data-theme', 'light') // first visit: light; stored choices win
         var lg = new URLSearchParams(location.search).get('lang') || localStorage.getItem('investcalc.lang')
         if (lg === 'cs' || lg === 'en') document.documentElement.lang = lg
       } catch (e) {}

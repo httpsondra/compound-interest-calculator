@@ -8,8 +8,8 @@ import { Menu, Select } from '../ui/controls'
 import { Controls } from './Controls'
 import { ResultsHero } from './ResultsHero'
 import { GrowthChart } from './GrowthChart'
-import { RetirementSummary } from '../retirement/RetirementSummary'
-import { Conventions, FeeCard, GoalCard, Insights, Sensitivity, WithdrawalCard, YearTable } from './Details'
+import { Conventions } from './Details'
+import { DetailedAnalysis, PlanHighlights } from './Analysis'
 
 export function PlanView({ onReset, onRetirement }: { onReset: () => void; onRetirement: () => void }) {
   const { t, f } = useI18n()
@@ -85,15 +85,8 @@ export function PlanView({ onReset, onRetirement }: { onReset: () => void; onRet
       </div>
 
       <div className="plan-more">
-        <RetirementSummary onOpen={onRetirement} />
-        <GoalCard />
-        <div className="more-grid">
-          <WithdrawalCard />
-          <FeeCard />
-          <Insights />
-          <Sensitivity />
-        </div>
-        <YearTable />
+        <PlanHighlights onRetirement={onRetirement} />
+        <DetailedAnalysis />
         <Conventions />
       </div>
 

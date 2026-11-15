@@ -251,8 +251,8 @@
       'config hero'
       'config chart'
       'config more';
-    column-gap: clamp(32px, 4vw, 64px);
-    row-gap: var(--s-8);
+    column-gap: clamp(32px, 4vw, 72px);
+    row-gap: var(--s-10);
   }
   .plan-config {
     align-self: start;
@@ -270,18 +270,6 @@
 @media (min-width: 1280px) {
   :root {
     --controls-w: 408px;
-  }
-}
-
-.more-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s-8) var(--s-10);
-}
-
-@media (min-width: 820px) {
-  .more-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

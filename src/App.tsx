@@ -28,7 +28,7 @@ function readTheme(): Theme {
   } catch {
     /* ignore */
   }
-  return 'system'
+  return 'light' // first visit; a stored preference (including 'system') always wins
 }
 
 /** A scenario decoded from `?s=`; applied after mount so the previous state stays in the undo history. */

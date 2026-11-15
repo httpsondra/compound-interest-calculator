@@ -18,9 +18,63 @@ export function AdvancedSections() {
   const w = s.withdrawal
   const firstYear = firstYearBudget(computed.result)
 
+  // Level 3: everything beyond the four primary inputs, grouped under one entry. The summary names what
+  // is switched on, so nothing hides silently. Values are kept when sections are collapsed.
+  const activeNames = [
+    s.growthMode !== 'none' ? t.inputs.growth : null,
+    s.lumpSums.length > 0 ? t.lumps.title : null,
+    s.feesEnabled ? t.fees.title : null,
+    s.goal.enabled ? t.goal.title : null,
+    w.enabled ? t.withdrawal.title : null,
+    s.horizonMonths > 0 || s.startAge != null ? t.advanced.title : null,
+  ].filter((x): x is string => x != null)
+
   return (
+    <Disclosure
+      id="sec-advanced"
+      className="adv"
+      title={t.inputs.advanced}
+      icon={<Icon name="sparkle" size={17} />}
+      active={activeNames.length > 0}
+      summary={activeNames.length ? activeNames.join(' · ') : t.inputs.advancedHint}
+    >
     <div className="disc-stack">
-      <h3 className="disc-label">{t.inputs.more}</h3>
+      <Disclosure
+        id="sec-growth"
+        title={t.inputs.growth}
+        icon={<Icon name="plus" size={17} />}
+        active={s.growthMode !== 'none'}
+        summary={s.growthMode === 'none' ? t.inputs.growthNone : s.growthMode === 'inflation' ? t.inputs.growthInflation : `${f.pct(s.growthRate, 1)}`}
+      >
+        <Segmented
+          size="sm"
+          label={t.inputs.growth}
+          help="growth"
+          value={s.growthMode}
+          options={[
+            { value: 'none', label: t.inputs.growthNone },
+            { value: 'custom', label: t.inputs.growthCustom },
+            { value: 'inflation', label: t.inputs.growthInflation },
+          ]}
+          onChange={(v) => update((x) => ({ ...x, growthMode: v, inflationEnabled: v === 'inflation' ? true : x.inflationEnabled }))}
+        />
+        {s.growthMode === 'custom' && (
+          <NumberField
+            id="f-growth"
+            size="sm"
+            label={t.inputs.growthRate}
+            value={s.growthRate}
+            min={-50}
+            max={50}
+            step={0.5}
+            decimals={2}
+            suffix="%"
+            error={issue('growthRate')}
+            onChange={(v) => update((x) => ({ ...x, growthRate: v }), 'growthRate')}
+          />
+        )}
+      </Disclosure>
+
       <Disclosure
         id="sec-goal"
         title={t.goal.title}
@@ -239,6 +293,17 @@ export function AdvancedSections() {
         icon={<Icon name="sparkle" size={17} />}
         summary={`${s.startAge != null ? `${s.startAge} ${yrs} · ` : ''}${s.timing === 'start' ? t.advanced.timingStart : t.advanced.timingEnd}`}
       >
+        <NumberField
+          id="f-months"
+          size="sm"
+          label={t.inputs.months}
+          value={s.horizonMonths}
+          min={0}
+          max={11}
+          step={1}
+          suffix={lang === 'cs' ? 'měs.' : 'mo'}
+          onChange={(v) => update((x) => ({ ...x, horizonMonths: Math.round(v) }), 'horizonMonths')}
+        />
         <Switch
           label={t.advanced.startAge}
           help="startAge"
@@ -270,5 +335,6 @@ export function AdvancedSections() {
         />
       </Disclosure>
     </div>
+    </Disclosure>
   )
 }

@@ -89,6 +89,9 @@ export const cs: Dict = {
       'Navýší všechny vklady vždy po roce plánu. „O inflaci“ udržuje vklady stálé v dnešních cenách; „Žádné“ je drží stálé nominálně, takže jejich reálná hodnota klesá.',
     growthRate: 'Navýšení za rok',
     more: 'Další možnosti',
+    returnShort: 'Roční výnos',
+    advanced: 'Pokročilá nastavení',
+    advancedHint: 'Inflace, poplatky, výběry, cíl…',
     sliderLabel: '{label} – posuvník',
   },
   freq: {
@@ -273,6 +276,19 @@ export const cs: Dict = {
     hint: 'Hodnoty zobrazíte najetím, klepnutím nebo šipkami.',
     toggle: 'Zobrazit {series}',
     label: 'Graf hodnoty portfolia za {years}. Konečná hodnota {value}.',
+  },
+  hl: {
+    title: 'Hlavní zjištění',
+    retirement: 'Příjem v důchodu',
+    startsAt: 'Začíná na',
+    lowest: 'Nejnižší modelovaný',
+    change: '{pct} {dir} počátku',
+    below: 'pod úrovní',
+    above: 'nad úrovní',
+  },
+  analysis: {
+    title: 'Podrobná analýza',
+    hint: 'Cíl, poplatky, citlivost, roční rozpis a další',
   },
   milestones: {
     title: 'Milníky',

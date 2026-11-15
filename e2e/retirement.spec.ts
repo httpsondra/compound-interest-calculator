@@ -23,6 +23,8 @@ test('Test A in the UI: 6 000 000 CZK at 4 % → 20 000 / month, 240 000 / year'
   await page.getByRole('radio', { name: /CZK/ }).click()
   await typeInto(page, 'Initial investment', '6000000')
   await typeInto(page, 'Regular contribution – Amount', '0')
+  const adv = page.getByRole('button', { name: /^Advanced settings/ })
+  if ((await adv.getAttribute('aria-expanded')) !== 'true') await adv.click()
   await page.getByRole('button', { name: /^Withdrawals/ }).click()
   await page.getByRole('switch', { name: 'Withdraw from the portfolio' }).click()
   await typeInto(page, 'Start in year', '1')

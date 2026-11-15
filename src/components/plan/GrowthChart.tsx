@@ -4,12 +4,13 @@ import { totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { XYChart, type Marker, type Series } from '../chart/XYChart'
 import { Segmented } from '../ui/controls'
-import { HelpTip } from '../ui/HelpTip'
+import { useMilestoneMarkers } from './milestones'
 
 export function GrowthChart() {
   const { t, f, fill, duration } = useI18n()
   const { scenario: s, computed, showReal, setShowReal } = useApp()
   const [hideContrib, setHideContrib] = useState(false)
+  const allMarkers = useMilestoneMarkers()
   const res = computed.result
   const age = s.startAge
 
@@ -53,21 +54,8 @@ export function GrowthChart() {
   const goal =
     s.goal.enabled && computed.goal && s.goal.real === real ? { value: s.goal.target, label: `${t.goal.marker} ${f.money(s.goal.target, s.currency, { compact: true })}` } : null
 
-  const markers: Marker[] = computed.milestones.map((m) => {
-    const year = Math.ceil(m.month / 12) || 1
-    const label =
-      m.kind === 'million'
-        ? fill(t.milestones.million, { amount: f.money(m.amount!, s.currency, { compact: true }), year })
-        : m.kind === 'crossover'
-          ? fill(t.milestones.crossover, { year })
-          : m.kind === 'goal'
-            ? fill(t.milestones.goal, { year })
-            : m.kind === 'withdraw'
-              ? fill(t.milestones.withdraw, { year: Math.floor(m.month / 12) + 1 })
-              : fill(t.milestones.depleted, { year })
-    const tone = m.kind === 'goal' ? 'pos' : m.kind === 'depleted' ? 'neg' : m.kind === 'withdraw' ? 'warn' : 'default'
-    return { month: m.month, label, tone } as Marker
-  })
+  // Only what changes the story stays on the curve: the goal and a depletion. The rest is listed under Detailed analysis.
+  const markers: Marker[] = allMarkers.filter((m) => m.tone === 'pos' || m.tone === 'neg')
 
   const H = totalMonths(s)
   const title = (month: number) => {
@@ -83,7 +71,6 @@ export function GrowthChart() {
           <h2 id="chart-h" className="section-title">
             {t.chart.title}
           </h2>
-          <HelpTip topic="chart" label={t.chart.title} />
         </div>
         <div className="chart-tools">
           {s.inflationEnabled && (
@@ -99,7 +86,6 @@ export function GrowthChart() {
               onChange={(v) => setShowReal(v === 'real')}
             />
           )}
-          {s.inflationEnabled && <HelpTip topic="nominalReal" label={t.results.valueMode} />}
         </div>
       </header>
       <ul className="legend" aria-label={t.chart.title}>
@@ -131,7 +117,7 @@ export function GrowthChart() {
         xs={data.xs}
         series={series}
         goal={goal}
-        markers={real ? [] : markers.filter((m) => !(hasWithdrawals && m.tone === 'warn'))}
+        markers={real ? [] : markers}
         regions={
           s.withdrawal.enabled && (s.withdrawal.startYear - 1) * 12 < H
             ? [{ start: (s.withdrawal.startYear - 1) * 12, end: s.withdrawal.endYear != null ? s.withdrawal.endYear * 12 : H, label: t.withdrawal.title }]
@@ -154,22 +140,6 @@ export function GrowthChart() {
         }}
       />
       <p className="chart-hint">{t.chart.hint}</p>
-      {markers.length > 0 && !real && (
-        <div className="milestones">
-          <div className="title-row">
-            <h3 className="mini-title">{t.milestones.title}</h3>
-            <HelpTip topic="milestones" label={t.milestones.title} />
-          </div>
-          <ul>
-            {markers.map((m, i) => (
-              <li key={i} className={`milestone milestone--${m.tone}`}>
-                <span className="milestone-dot" aria-hidden="true" />
-                {m.label}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </section>
   )
 }

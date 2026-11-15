@@ -1060,10 +1060,6 @@
   color: inherit;
 }
 
-.currency-hint {
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-}
 
 .field-stack {
   display: grid;
@@ -1099,12 +1095,6 @@
   min-height: 50px;
 }
 
-.horizon-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px;
-  gap: var(--s-2);
-  align-items: start;
-}
 
 .pair-row {
   display: grid;
@@ -1112,10 +1102,6 @@
   gap: var(--s-3);
 }
 
-.growth-row {
-  display: grid;
-  gap: var(--s-3);
-}
 
 .lump-row {
   display: grid;
@@ -3381,4 +3367,386 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--s-2);
+}
+
+
+/* ═════════════ V5 · Aurora experience ═════════════
+ * Simple on the surface: four primary inputs, one focal result, essentials under the chart,
+ * everything else behind calm, collapsed entry points.
+ */
+
+/* ── Primary fields ── */
+.primary-fields {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.pair-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+@media (max-width: 359px) {
+  .pair-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.nf--md .nf-box {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.nf--md .nf-box:hover {
+  box-shadow: inset 0 0 0 1px var(--accent-ring);
+}
+
+.nf--md .nf-box:focus-within {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 4px var(--accent-ring);
+}
+
+.nf--md .nf-row {
+  height: 48px;
+  padding: 0 14px;
+}
+
+.nf--md .nf-box.has-slider .nf-row {
+  height: 46px;
+  padding-top: 4px;
+}
+
+.nf--md .nf-input {
+  font-size: var(--fs-lg);
+  font-weight: 580;
+  letter-spacing: -0.022em;
+  font-variant-numeric: tabular-nums;
+}
+
+.nf--md .nf-affix {
+  font-weight: 500;
+}
+
+.nf-label {
+  color: var(--text-2);
+  letter-spacing: -0.005em;
+}
+
+/* ── Advanced settings: one entry, quiet inside ── */
+.adv {
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.adv > .disc-h > .disc-btn {
+  min-height: 56px;
+}
+
+.adv > .disc-h .disc-title {
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.adv > .disc-panel > .disc-inner > .disc-content {
+  padding: 0 0 var(--s-2);
+}
+
+.adv .disc-stack {
+  border-top: 0;
+  margin-left: 4px;
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--accent-soft-2);
+}
+
+.adv .disc .disc-btn {
+  min-height: 48px;
+}
+
+.adv .disc .disc-title {
+  font-size: var(--fs-sm);
+}
+
+/* ── Hero: one focal number, quiet support ── */
+.hero .tag {
+  height: auto;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--fs-xs);
+  font-weight: 520;
+  letter-spacing: 0;
+}
+
+.hero-label {
+  font-size: var(--fs-base);
+}
+
+.hero-real {
+  font-size: var(--fs-md);
+}
+
+.stat dt {
+  font-size: var(--fs-sm);
+}
+
+.stat dd {
+  font-size: var(--fs-xl);
+}
+
+/* ── Highlights: only what applies to this plan, unboxed ── */
+.highlights {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.hl-row {
+  display: grid;
+  gap: 8px;
+  padding-left: var(--s-4);
+  border-left: 2px solid var(--accent-soft-2);
+  min-width: 0;
+}
+
+.hl-row.is-warn {
+  border-left-color: var(--c-warn);
+}
+
+.hl-row.is-pos {
+  border-left-color: var(--c-pos);
+}
+
+.hl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.hl-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.hl-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3) var(--s-10);
+  margin: 0;
+}
+
+.hl-figures dt {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.hl-figures dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.hl-figures dd span {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-2);
+  letter-spacing: 0;
+}
+
+.hl-figures .hl-change {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  font-weight: 560;
+  letter-spacing: 0;
+  color: var(--text-2);
+}
+
+.hl-row.is-warn .hl-change {
+  color: var(--c-warn);
+}
+
+.hl-note,
+.hl-line {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.hl-line {
+  font-size: var(--fs-base);
+  color: var(--text);
+}
+
+/* ── Detailed analysis: one row of tabs, collapsed by default ── */
+.analysis {
+  display: grid;
+  gap: var(--s-4);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.analysis-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px var(--s-3);
+}
+
+.analysis-title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.analysis-hint {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tab {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: 540;
+  color: var(--text-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  transition: background-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
+}
+
+.tab:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--text-on-accent);
+  background: var(--accent-fill);
+  box-shadow: none;
+}
+
+.tabpanel {
+  padding-top: var(--s-4);
+  min-width: 0;
+  animation: tab-in var(--t-slow) var(--ease-out);
+}
+
+.tabpanel > .block:first-child,
+.analysis-stack > .block:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.analysis-stack {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.section-title--sm {
+  font-size: var(--fs-base);
+}
+
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.chart-hint {
+  color: var(--text-3);
+}
+
+/* Panel never grows past its column: grid children may shrink, long summaries wrap or truncate. */
+.config-body > *,
+.primary-fields > *,
+.pair-fields > *,
+.disc,
+.disc-btn,
+.disc-content {
+  min-width: 0;
+}
+
+.adv > .disc-h > .disc-btn {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'icon title chev'
+    'icon sum chev';
+  column-gap: 12px;
+  row-gap: 1px;
+  align-items: center;
+  padding-block: 9px;
+}
+
+.adv > .disc-h > .disc-btn .disc-icon {
+  grid-area: icon;
+}
+
+.adv > .disc-h > .disc-btn .disc-title {
+  grid-area: title;
+}
+
+.adv > .disc-h > .disc-btn .disc-summary {
+  grid-area: sum;
+  margin: 0;
+  max-width: none;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.35;
+}
+
+.adv > .disc-h > .disc-btn .disc-chevron {
+  grid-area: chev;
+}
+
+.hl-head .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.pair-fields {
+  align-items: end;
+}
+
+.hl-basis {
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+/* Small screens: stats become a tidy two-column grid; figures never split mid-number. */
+@media (max-width: 640px) {
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-4) var(--s-4);
+  }
+  .hero-stats .stat {
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
+  .stat dd {
+    font-size: var(--fs-lg);
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
+  .hl-figures dd {
+    font-size: var(--fs-lg);
+  }
 }

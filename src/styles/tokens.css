@@ -15,13 +15,13 @@
   /* Type */
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
-  --fs-2xs: 11px;
-  --fs-xs: 12px;
-  --fs-sm: 13px;
-  --fs-base: 14.5px;
-  --fs-md: 16px;
-  --fs-lg: 19px;
-  --fs-xl: 24px;
+  --fs-2xs: 12px;
+  --fs-xs: 13px;
+  --fs-sm: 14px;
+  --fs-base: 15px;
+  --fs-md: 16.5px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
   --fs-2xl: 32px;
   --fs-display: clamp(44px, 5vw, 68px);
   --lh-tight: 1.05;
@@ -69,17 +69,17 @@
 /* ───────────── Light (primary) ───────────── */
 :root,
 :root[data-theme='light'] {
-  --bg: #f5f7fb;
-  --bg-deep: #edf2fa;
+  --bg: #f7f9fd;
+  --bg-deep: #eff4fc;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-sunken: #f1f4f9;
-  --surface-hover: #ebf0f7;
+  --surface-sunken: #f2f5fb;
+  --surface-hover: #ecf1f9;
   --surface-active: #e3eaf6;
   --glass: rgba(255, 255, 255, 0.72);
   --glass-strong: rgba(255, 255, 255, 0.9);
-  --line: rgba(14, 30, 64, 0.08);
-  --line-strong: rgba(14, 30, 64, 0.15);
+  --line: rgba(14, 30, 64, 0.07);
+  --line-strong: rgba(14, 30, 64, 0.14);
   --edge: rgba(255, 255, 255, 0.95);
   --text: #0b1528;
   --text-2: #445270;
@@ -118,15 +118,15 @@
   --series-3: #0f9488;
   --series-4: #a21caf;
 
-  --shadow-1: 0 1px 2px rgba(14, 30, 64, 0.04), 0 6px 24px -12px rgba(14, 30, 64, 0.1);
+  --shadow-1: 0 1px 2px rgba(14, 30, 64, 0.03), 0 8px 28px -14px rgba(14, 30, 64, 0.1);
   --shadow-2: 0 1px 2px rgba(14, 30, 64, 0.05), 0 18px 48px -22px rgba(14, 30, 64, 0.2);
   --shadow-float: 0 20px 50px -18px rgba(14, 30, 64, 0.28), 0 2px 6px rgba(14, 30, 64, 0.06);
   --shadow-thumb: 0 1px 3px rgba(14, 30, 64, 0.22), 0 0 0 0.5px rgba(14, 30, 64, 0.1);
 
-  --aurora-1: rgba(59, 130, 246, 0.2);
-  --aurora-2: rgba(125, 211, 252, 0.28);
+  --aurora-1: rgba(59, 130, 246, 0.17);
+  --aurora-2: rgba(125, 211, 252, 0.3);
   --aurora-3: rgba(96, 165, 250, 0.12);
-  --hero-glow: rgba(96, 165, 250, 0.22);
+  --hero-glow: rgba(96, 165, 250, 0.26);
   --glass-blur: 18px;
 }
 
@@ -137,9 +137,9 @@
     --bg-deep: #04070f;
     --surface: #0c1527;
     --surface-raised: #111d34;
-    --surface-sunken: #08101f;
-    --surface-hover: #15233e;
-    --surface-active: #1a2b4b;
+    --surface-sunken: rgba(148, 180, 255, 0.055);
+    --surface-hover: rgba(148, 180, 255, 0.1);
+    --surface-active: rgba(148, 180, 255, 0.15);
     --glass: rgba(12, 21, 39, 0.68);
     --glass-strong: rgba(15, 26, 47, 0.92);
     --line: rgba(150, 180, 240, 0.09);
@@ -199,9 +199,9 @@
   --bg-deep: #04070f;
   --surface: #0c1527;
   --surface-raised: #111d34;
-  --surface-sunken: #08101f;
-  --surface-hover: #15233e;
-  --surface-active: #1a2b4b;
+  --surface-sunken: rgba(148, 180, 255, 0.055);
+  --surface-hover: rgba(148, 180, 255, 0.1);
+  --surface-active: rgba(148, 180, 255, 0.15);
   --glass: rgba(12, 21, 39, 0.68);
   --glass-strong: rgba(15, 26, 47, 0.92);
   --line: rgba(150, 180, 240, 0.09);
