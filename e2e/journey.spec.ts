@@ -270,3 +270,12 @@ test('Monte Carlo stays responsive and settles when parameters change rapidly', 
   await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 20_000 })
   await expect(page.locator('.tiles').first()).toBeVisible()
 })
+
+test('Monte Carlo watchdog: a worker that never answers is retried and the page still reaches a result (V4.2 item 2)', async ({ page }) => {
+  test.setTimeout(120_000)
+  // The worker loads but never replies (unresponsive, not crashed).
+  await page.route(/mc\.worker/, (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: 'self.onmessage = () => {}' }))
+  await page.goto('/?lang=en#/risk')
+  await expect(page.locator('.tiles').first()).toBeVisible({ timeout: 100_000 })
+  await expect(page.getByText('Simulating…')).toHaveCount(0)
+})

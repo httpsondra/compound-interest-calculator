@@ -44,6 +44,17 @@ export const cs: Dict = {
     fi: 'Finanční nezávislost (pravidlo 4 %)',
     lifecycle: 'Spořit a pak čerpat',
   },
+  sync: {
+    title: 'Vaše plány se změnily v jiné kartě',
+    body: 'Jiná karta uložila jiné plány, zatímco tato karta měla neuložené změny. Vyberte, kterou verzi ponechat. Nic se nesmaže: verze, kterou neponecháte, se uloží jako záloha v tomto prohlížeči.',
+    thisTab: 'Tato karta',
+    otherTab: 'Jiná karta',
+    note: 'Zálohy se uchovávají v tomto prohlížeči (10 nejnovějších).',
+    useOther: 'Použít plány z jiné karty',
+    keepMine: 'Ponechat plány z této karty',
+    failed: 'Tuto volbu nelze bezpečně provést (prohlížeč nedokázal uložit zálohu), takže se nic nezměnilo. Uvolněte úložiště prohlížeče a zkuste to znovu.',
+    saveFailed: 'Tento prohlížeč nemohl uložit vaše plány. Poslední změny zůstanou v této kartě, dokud nebude úložiště znovu k dispozici.',
+  },
   scenario: {
     untitled: 'Můj plán',
     label: 'Scénář',

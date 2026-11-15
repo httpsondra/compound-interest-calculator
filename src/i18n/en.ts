@@ -42,6 +42,17 @@ export const en = {
     fi: 'Financial independence (4 % rule)',
     lifecycle: 'Invest, then withdraw',
   },
+  sync: {
+    title: 'Your plans changed in another tab',
+    body: 'Another tab saved different plans while this tab had unsaved changes. Choose which version to keep. Nothing is deleted: the version you do not keep is saved as a backup in this browser.',
+    thisTab: 'This tab',
+    otherTab: 'Other tab',
+    note: 'Backups are kept in this browser (the 10 most recent).',
+    useOther: 'Use the other tab’s plans',
+    keepMine: 'Keep this tab’s plans',
+    failed: 'This choice could not be made safely (the browser would not keep a backup), so nothing was changed. Free up browser storage and try again.',
+    saveFailed: 'This browser could not save your plans. Recent changes are kept in this tab until storage is available again.',
+  },
   scenario: {
     untitled: 'My plan',
     label: 'Scenario',

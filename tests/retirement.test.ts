@@ -191,7 +191,8 @@ describe('persistence', () => {
     const legacy = sanitizeScenario({ withdrawal: { enabled: true, amount: 1000 } })!
     expect(legacy.withdrawal.strategy).toBe('fixed')
     expect(legacy.withdrawal.amount).toBe(1000)
-    expect(legacy.retirement).toEqual({ enabled: true, income: 40_000, real: true })
+    // Pre-retirement plans (no retirement data at all) never had an income goal: none is added.
+    expect(legacy.retirement).toEqual({ enabled: false, income: 40_000, real: true })
   })
 })
 

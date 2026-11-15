@@ -6,6 +6,7 @@ import { decodeShare, encodeShare } from './model/serialize'
 import { loadDoc, useStore, type Doc } from './state/store'
 import { addScenario, defaultTarget, importNeedsChoice, replaceScenario, type PendingImport } from './state/shareImport'
 import { ShareImportDialog } from './components/ShareImportDialog'
+import { ConflictDialog } from './components/ConflictDialog'
 import { AppCtx, type AppCtxValue } from './state/context'
 import { Header, type Theme, type View } from './components/Header'
 import { PlanView } from './components/plan/PlanView'
@@ -121,6 +122,11 @@ export default function App() {
     toast(t.app.sharedCancelled)
   }
 
+  // A failed save is reported once, instead of being silently lost.
+  useEffect(() => {
+    if (store.storageError) toast(t.sync.saveFailed)
+  }, [store.storageError, t, toast])
+
   // Language: <html lang>, title, persistence
   useEffect(() => {
     document.documentElement.lang = lang
@@ -165,6 +171,8 @@ export default function App() {
         const el = e.target as HTMLElement
         if (el.closest('input, textarea, [contenteditable]')) return
         e.preventDefault()
+        // Undo is off while a saved-plans conflict is open: the dialog must match what gets saved.
+        if (store.conflict) return
         if (store.canUndo) {
           store.undo()
           toast(t.app.undone)
@@ -240,6 +248,7 @@ export default function App() {
           <p>{t.app.disclaimer}</p>
           <p className="footer-meta">InvestCalc · investcalc.dev</p>
         </footer>
+        <ConflictDialog conflict={store.conflict} error={store.conflictError} onResolve={store.resolveConflict} />
         <ShareImportDialog
           pending={pendingImport}
           scenarios={store.doc.scenarios}

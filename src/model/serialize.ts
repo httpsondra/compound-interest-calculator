@@ -94,7 +94,9 @@ export function sanitizeScenario(input: unknown, fallbackCurrency: Currency = 'C
   if (version < 3) {
     amount = paymentToMonthly(num(w.amount, 0, MONEY_MAX, scaledAmount(20_000, currency)), frequency)
     amountReal = indexed
-    goalEnabled = true
+    // Plans saved before the retirement model (schema v2, first React redesign) had no income
+    // goal at all: they must not gain one. V4 plans always carried one (and V4 checked against it).
+    goalEnabled = isObj(input.retirement)
   } else if (version === 3) {
     amount = goalIncome
     amountReal = goalReal

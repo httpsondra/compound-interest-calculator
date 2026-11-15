@@ -1,0 +1,178 @@
+import { expect, test, type BrowserContext, type Page } from '@playwright/test'
+
+const plan = (id: string, name: string) => ({ v: 4, id, name, currency: 'EUR' })
+const SEED = { activeId: 'a', scenarios: [plan('a', 'Alpha'), plan('b', 'Beta')] }
+
+/** Two tabs of one browser profile: they share localStorage, as real tabs do. */
+async function twoTabs(ctx: BrowserContext): Promise<[Page, Page]> {
+  await ctx.addInitScript((seed) => {
+    if (!localStorage.getItem('seeded')) {
+      localStorage.setItem('investcalc.v2.scenarios', JSON.stringify(seed))
+      localStorage.setItem('seeded', '1')
+    }
+  }, SEED)
+  const A = await ctx.newPage()
+  await A.goto('/?lang=en#/compare')
+  await A.locator('.scen-name').first().waitFor()
+  const B = await ctx.newPage()
+  await B.goto('/?lang=en#/compare')
+  await B.locator('.scen-name').nth(1).waitFor()
+  return [A, B]
+}
+
+const stored = (p: Page) =>
+  p.evaluate(() => (JSON.parse(localStorage.getItem('investcalc.v2.scenarios') ?? '{"scenarios":[]}') as { scenarios: { name: string }[] }).scenarios.map((x) => x.name))
+const backups = (p: Page) =>
+  p.evaluate(() => (JSON.parse(localStorage.getItem('investcalc.v2.backups') ?? '[]') as { raw: string }[]).map((b) => b.raw))
+const conflict = (p: Page) => p.getByRole('dialog', { name: 'Your plans changed in another tab' })
+
+/** Both tabs have unsaved edits inside the same save window: a real conflict. Returns the tab that shows it. */
+async function concurrentEdits(A: Page, B: Page): Promise<Page> {
+  await B.locator('.scen-name').nth(1).fill('Beta edited in B')
+  await A.locator('.scen-name').first().fill('Alpha renamed by A')
+  await Promise.all([A.waitForTimeout(1500), B.waitForTimeout(1500)])
+  const inA = await conflict(A).isVisible()
+  const inB = await conflict(B).isVisible()
+  expect(inA !== inB, 'exactly one tab shows the conflict').toBe(true)
+  return inA ? A : B
+}
+
+/** Every saved name and backup text that exists for this profile (nothing may be missing from both). */
+async function everything(p: Page): Promise<string> {
+  return (await stored(p)).join('|') + '||' + (await backups(p)).join('||')
+}
+
+test('simultaneous edits: a conflict is raised, nothing is overwritten, both versions are kept', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  const conflicted = await concurrentEdits(A, B)
+  const other = conflicted === A ? B : A
+  // The tab with the conflict has not written anything.
+  expect((await everything(other))).toContain('Alpha renamed by A')
+  // Both edits exist before any decision.
+  const all = await everything(A)
+  expect(all).toContain('Alpha renamed by A')
+  expect(all).toContain('Beta edited in B')
+  await conflicted.getByRole('button', { name: 'Keep this tab’s plans' }).click()
+  await expect(conflict(conflicted)).toBeHidden()
+  const after = await everything(A)
+  expect(after).toContain('Alpha renamed by A')
+  expect(after).toContain('Beta edited in B')
+})
+
+test('a tab without unsaved changes adopts another tab’s changes silently', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  await A.locator('.scen-name').first().fill('Renamed in A')
+  await A.waitForTimeout(600)
+  await expect(B.locator('.scen-name').first()).toHaveValue('Renamed in A', { timeout: 5000 })
+  await expect(conflict(B)).toBeHidden()
+})
+
+test('reloading while a conflict is pending restores the saved plans, keeps the unsaved version as a backup', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  const conflicted = await concurrentEdits(A, B)
+  await conflicted.reload()
+  await expect(conflict(conflicted)).toBeHidden()
+  expect(await everything(A)).toContain('Beta edited in B')
+  expect(await everything(A)).toContain('Alpha renamed by A')
+})
+
+test('choosing the other tab’s plans shows the saved plans and keeps this tab’s version as a backup', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  const conflicted = await concurrentEdits(A, B)
+  const other = conflicted === A ? B : A
+  const mineName = conflicted === A ? 'Alpha renamed by A' : 'Beta edited in B'
+  await conflicted.getByRole('button', { name: 'Use the other tab’s plans' }).click()
+  await expect(conflict(conflicted)).toBeHidden()
+  // This tab now shows exactly what is saved: the other tab's plans.
+  const shown = await conflicted.locator('.scen-name').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value))
+  expect(shown).toEqual(await stored(other))
+  expect((await backups(other)).some((r) => r.includes(mineName))).toBe(true)
+})
+
+test('the conflict dialog cannot be dismissed with Escape: a decision is required', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  const conflicted = await concurrentEdits(A, B)
+  await conflicted.keyboard.press('Escape')
+  await expect(conflict(conflicted)).toBeVisible()
+})
+
+test('a second save by the other tab while the dialog is open is backed up, not lost', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  const conflicted = await concurrentEdits(A, B)
+  const other = conflicted === A ? B : A
+  // The other tab saves again while the conflict dialog is still open.
+  await other.locator('.scen-name').first().fill('Second edit by the other tab')
+  await other.waitForTimeout(800)
+  await conflicted.getByRole('button', { name: 'Keep this tab’s plans' }).click()
+  await expect(conflict(conflicted)).toBeHidden()
+  expect(await everything(conflicted)).toContain('Second edit by the other tab')
+})
+
+test('a corrupted saved plan is backed up on load and never overwritten silently', async ({ context }) => {
+  const corrupt = '{"scenarios":[{"v":4,"id":"a","name":"Precious'
+  await context.addInitScript((raw) => {
+    if (!localStorage.getItem('seeded')) {
+      localStorage.setItem('investcalc.v2.scenarios', raw)
+      localStorage.setItem('seeded', '1')
+    }
+  }, corrupt)
+  const page = await context.newPage()
+  await page.goto('/?lang=en#/compare')
+  await page.waitForTimeout(1200) // an idle load must not write
+  expect(await page.evaluate(() => localStorage.getItem('investcalc.v2.scenarios'))).toBe(corrupt)
+  expect((await backups(page)).some((r) => r === corrupt)).toBe(true)
+})
+
+test('opening a second tab does not wipe the first tab’s undo history or raise a conflict', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  await A.locator('.scen-name').first().fill('Alpha renamed by A')
+  await A.waitForTimeout(600)
+  await expect(conflict(B)).toBeHidden()
+  await A.locator('.scen-name').first().click()
+  await A.keyboard.press('Escape')
+  await A.locator('main').first().click({ position: { x: 5, y: 5 } })
+  await A.keyboard.press('Control+z')
+  await expect(A.locator('.scen-name').first()).toHaveValue('Alpha', { timeout: 3000 })
+})
+
+test('an unsaved edit in one tab does not produce a conflict in a tab that was only opened', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  await A.locator('.scen-name').first().fill('Unsaved in A')
+  // B is opened (and loaded) while A's edit is still unsaved.
+  const C = await context.newPage()
+  await C.goto('/?lang=en#/compare')
+  await C.locator('.scen-name').first().waitFor()
+  await A.waitForTimeout(600)
+  await expect(conflict(C)).toBeHidden()
+  await expect(conflict(B)).toBeHidden()
+  await expect(C.locator('.scen-name').first()).toHaveValue('Unsaved in A')
+})
+
+test('if a backup cannot be kept, the choice is refused: nothing is overwritten and the user is told', async ({ context }) => {
+  await context.addInitScript(() => {
+    const orig = Storage.prototype.setItem
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k === 'investcalc.v2.backups') throw new DOMException('full', 'QuotaExceededError')
+      return orig.call(this, k, v)
+    }
+  })
+  const [A, B] = await twoTabs(context)
+  const conflicted = await concurrentEdits(A, B)
+  const other = conflicted === A ? B : A
+  const storedBefore = await stored(other)
+  await conflicted.getByRole('button', { name: 'Keep this tab’s plans' }).click()
+  await expect(conflicted.getByRole('alert')).toContainText('could not be made safely')
+  await expect(conflict(conflicted)).toBeVisible()
+  expect(await stored(other)).toEqual(storedBefore)
+})
+
+test('undo is unavailable while the conflict dialog is open, so it saves what the dialog shows', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  const conflicted = await concurrentEdits(A, B)
+  await conflicted.keyboard.press('Control+z')
+  await expect(conflict(conflicted)).toBeVisible()
+  await conflicted.getByRole('button', { name: 'Keep this tab’s plans' }).click()
+  await expect(conflict(conflicted)).toBeHidden()
+  const shown = await conflicted.locator('.scen-name').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value))
+  expect(await stored(conflicted)).toEqual(shown)
+})

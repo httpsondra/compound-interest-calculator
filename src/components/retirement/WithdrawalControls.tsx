@@ -38,9 +38,9 @@ function Step({ n, title, help, children }: { n: number; title: string; help?: H
         <span className="wd-step-n" aria-hidden="true">
           {n}
         </span>
-        <h4 id={id} className="wd-step-title">
+        <h3 id={id} className="wd-step-title">
           {title}
-        </h4>
+        </h3>
         {help && <HelpTip topic={help} label={title} />}
       </div>
       <div className="wd-step-body">{children}</div>
@@ -367,9 +367,9 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
               <span className="wd-step-n" aria-hidden="true">
                 1
               </span>
-              <h4 id={strategyHead} className="wd-step-title">
+              <h3 id={strategyHead} className="wd-step-title">
                 {t.retire.strategy}
-              </h4>
+              </h3>
               <HelpTip topic="withdrawalStrategy" label={t.retire.strategy} />
             </div>
             <div className="wd-step-body">

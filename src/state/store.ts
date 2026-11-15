@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { defaultScenario, type Currency, type Scenario } from '../model/scenario'
 import { sanitizeScenario } from '../model/serialize'
+import { BACKUP_KEY, isConflict, parseBackups, withBackup, type Backup } from './sync'
 
 export const MAX_SCENARIOS = 4
 const STORAGE_KEY = 'investcalc.v2.scenarios'
@@ -22,6 +23,17 @@ interface State {
 type Action =
   | { type: 'set'; doc: Doc; key?: string; at: number }
   | { type: 'undo' }
+  /** Another tab's saved plans adopted: this tab's undo history is kept, and no undo step is created. */
+  | { type: 'adopt'; doc: Doc }
+
+/** A version another tab saved while this tab had unsaved changes. */
+export interface Conflict {
+  /** The other tab's saved plans, as read when the conflict was raised. */
+  theirs: Doc
+  theirRaw: string
+  /** This tab's unsaved plans (what the dialog shows as "this tab"). */
+  mine: Doc
+}
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -36,29 +48,80 @@ function reducer(state: State, action: Action): State {
       const prev = state.past[state.past.length - 1]
       return { doc: prev, past: state.past.slice(0, -1), lastKey: null, lastAt: 0 }
     }
+    case 'adopt':
+      return { ...state, doc: action.doc, lastKey: null, lastAt: 0 }
   }
 }
 
-export function loadDoc(currency: Currency, name: string): Doc {
+/* ───────── storage access (every call tolerates unavailable or full storage) ───────── */
+
+export function readRaw(): string | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed: unknown = JSON.parse(raw)
-      if (parsed && typeof parsed === 'object' && Array.isArray((parsed as Doc).scenarios)) {
-        const scenarios = (parsed as Doc).scenarios
-          .map((s) => sanitizeScenario(s, currency))
-          .filter((s): s is Scenario => s !== null)
-          .slice(0, MAX_SCENARIOS)
-        if (scenarios.length) {
-          const wanted = (parsed as Doc).activeId
-          const activeId = scenarios.some((s) => s.id === wanted) ? wanted : scenarios[0].id
-          return { scenarios, activeId }
-        }
+    return localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function writeRaw(raw: string): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, raw)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function readBackups(): Backup[] {
+  try {
+    return parseBackups(localStorage.getItem(BACKUP_KEY))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Keep a copy of a version that would otherwise be overwritten. Returns false if it could not be
+ * kept, and the caller must then not overwrite it. Identical consecutive copies are not repeated.
+ */
+export function keepBackup(raw: string): boolean {
+  try {
+    const list = readBackups()
+    if (list[0]?.raw === raw) return true
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(withBackup(list, raw, Date.now())))
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function parseStoredRaw(raw: string | null, currency: Currency = 'CZK'): Doc | null {
+  if (!raw) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as Doc).scenarios)) {
+      const scenarios = (parsed as Doc).scenarios
+        .map((x) => sanitizeScenario(x, currency))
+        .filter((x): x is Scenario => x !== null)
+        .slice(0, MAX_SCENARIOS)
+      if (scenarios.length) {
+        const wanted = (parsed as Doc).activeId
+        const activeId = scenarios.some((x) => x.id === wanted) ? wanted : scenarios[0].id
+        return { scenarios, activeId }
       }
     }
   } catch {
-    /* corrupted or unavailable storage → start fresh */
+    /* unreadable */
   }
+  return null
+}
+
+export function loadDoc(currency: Currency, name: string): Doc {
+  const raw = readRaw()
+  const doc = parseStoredRaw(raw, currency)
+  if (doc) return doc
+  // Stored text that cannot be read is kept as a backup before this tab does anything else with it.
+  if (raw) keepBackup(raw)
   const s = defaultScenario(currency, name)
   return { scenarios: [s], activeId: s.id }
 }
@@ -72,34 +135,104 @@ export function useStore(initial: () => Doc) {
   }))
   const docRef = useRef(state.doc)
   docRef.current = state.doc
+  const hasPast = useRef(state.past.length > 0)
+  hasPast.current = state.past.length > 0
 
-  // Persist (debounced) — local only, never sent anywhere. Flushed when the page is hidden or unloaded.
-  const persist = useCallback(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(docRef.current))
-    } catch {
-      /* quota / private mode */
-    }
+  // The stored text this tab last loaded or wrote. Stored text that differs from it was saved by another tab.
+  const known = useRef<string | null>(readRaw())
+  // Only a real edit of this tab (set by setDoc or undo) makes it dirty. Opening, adopting or
+  // reloading never writes, so a tab that has not been edited cannot overwrite anything.
+  const dirty = useRef(false)
+  const conflictRef = useRef<Conflict | null>(null)
+  const [conflict, setConflict] = useState<Conflict | null>(null)
+  const [conflictError, setConflictError] = useState(false)
+  const [storageError, setStorageError] = useState(false)
+
+  /**
+   * The only write path. Before this tab's version replaces the stored text, the stored text is backed
+   * up if it is not the text this tab knows (another tab's data). If the backup cannot be kept, nothing
+   * is written.
+   */
+  const save = useCallback((): boolean => {
+    const cur = readRaw()
+    if (cur !== null && cur !== known.current && !keepBackup(cur)) return false
+    const raw = JSON.stringify(docRef.current)
+    if (!writeRaw(raw)) return false
+    known.current = raw
+    dirty.current = false
+    return true
   }, [])
+
+  const raiseConflict = useCallback(
+    (theirRaw: string) => {
+      if (conflictRef.current) return // the dialog already shows the conflict; the newer text is backed up on decision
+      const mine = docRef.current
+      // This tab's unsaved version is kept before anything else, so it survives a reload.
+      if (!keepBackup(JSON.stringify(mine))) setStorageError(true)
+      const theirs = parseStoredRaw(theirRaw)
+      if (!theirs) {
+        // The other tab's text cannot be read: keep it, then this tab's version replaces it.
+        if (save()) setStorageError(false)
+        else setStorageError(true)
+        return
+      }
+      const c: Conflict = { theirs, theirRaw, mine }
+      conflictRef.current = c
+      setConflict(c)
+      setConflictError(false)
+    },
+    [save],
+  )
+
+  // Persist (debounced). Local only, never sent anywhere. Flushed when the page is hidden or unloaded.
+  const persist = useCallback(() => {
+    if (!dirty.current || conflictRef.current) return
+    const stored = readRaw()
+    if (isConflict(known.current, stored)) {
+      raiseConflict(stored!)
+      return
+    }
+    if (save()) setStorageError(false)
+    else setStorageError(true)
+  }, [raiseConflict, save])
+
   useEffect(() => {
+    if (!dirty.current) return
     const id = window.setTimeout(persist, 250)
     return () => window.clearTimeout(id)
   }, [state.doc, persist])
+
   useEffect(() => {
     const flush = () => persist()
     const onVis = () => document.visibilityState === 'hidden' && persist()
+    // Another tab saved. Adopted silently when this tab has nothing unsaved; otherwise it is a conflict.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || e.newValue === null || e.newValue === known.current) return
+      if (dirty.current) {
+        raiseConflict(e.newValue)
+        return
+      }
+      const theirs = parseStoredRaw(e.newValue)
+      if (!theirs) return
+      known.current = e.newValue
+      dispatch({ type: 'adopt', doc: theirs })
+    }
     window.addEventListener('pagehide', flush)
     window.addEventListener('beforeunload', flush)
+    window.addEventListener('storage', onStorage)
     document.addEventListener('visibilitychange', onVis)
     return () => {
       window.removeEventListener('pagehide', flush)
       window.removeEventListener('beforeunload', flush)
+      window.removeEventListener('storage', onStorage)
       document.removeEventListener('visibilitychange', onVis)
     }
-  }, [persist])
+  }, [persist, raiseConflict])
 
   const setDoc = useCallback((next: Doc | ((d: Doc) => Doc), key?: string) => {
     const doc = typeof next === 'function' ? next(docRef.current) : next
+    if (doc === docRef.current) return
+    dirty.current = true // set synchronously, so a storage event cannot slip in between edit and persist
     dispatch({ type: 'set', doc, key, at: performance.now() })
   }, [])
 
@@ -114,10 +247,67 @@ export function useStore(initial: () => Doc) {
     [setDoc],
   )
 
-  const undo = useCallback(() => dispatch({ type: 'undo' }), [])
+  /** Undo is unavailable while a conflict is open: the dialog must show exactly what gets saved. */
+  const undo = useCallback(() => {
+    if (conflictRef.current || !hasPast.current) return
+    dirty.current = true
+    dispatch({ type: 'undo' })
+  }, [])
+
+  /**
+   * Resolve a conflict. Returns false (and changes nothing) if the choice cannot be carried out
+   * safely, for example because a backup could not be kept.
+   * 'other': show the other tab's saved plans here. 'mine': keep this tab's plans and overwrite.
+   * In both cases every version that is not kept is backed up first.
+   */
+  const resolveConflict = useCallback((choice: 'other' | 'mine'): boolean => {
+    const c = conflictRef.current
+    if (!c) return false
+    let ok: boolean
+    if (choice === 'other') {
+      const cur = readRaw()
+      const curDoc = cur === null ? null : parseStoredRaw(cur)
+      if (cur === null) {
+        ok = save() // nothing is saved any more: this tab's plans are kept
+      } else if (!curDoc) {
+        ok = false // unreadable: cannot be adopted; nothing is changed
+      } else if (cur !== c.theirRaw && !keepBackup(c.theirRaw)) {
+        ok = false
+      } else {
+        known.current = cur
+        dirty.current = false
+        dispatch({ type: 'adopt', doc: curDoc })
+        ok = true
+      }
+    } else {
+      // Back up what is stored now (may be newer than the version shown) and the version shown.
+      const cur = readRaw()
+      ok = (cur === null || cur === c.theirRaw || keepBackup(c.theirRaw)) && save()
+    }
+    if (!ok) {
+      setConflictError(true)
+      return false
+    }
+    conflictRef.current = null
+    setConflict(null)
+    setConflictError(false)
+    setStorageError(false)
+    return true
+  }, [save])
 
   const active = state.doc.scenarios.find((s) => s.id === state.doc.activeId) ?? state.doc.scenarios[0]
-  return { doc: state.doc, active, setDoc, update, undo, canUndo: state.past.length > 0 }
+  return {
+    doc: state.doc,
+    active,
+    setDoc,
+    update,
+    undo,
+    canUndo: state.past.length > 0,
+    conflict,
+    conflictError,
+    resolveConflict,
+    storageError,
+  }
 }
 
 export type Store = ReturnType<typeof useStore>

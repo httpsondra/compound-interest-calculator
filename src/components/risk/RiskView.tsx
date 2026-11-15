@@ -50,9 +50,10 @@ export default function RiskView() {
       income: plan.withdrawal && target ? { monthly: incomeMonthly, real: incomeReal } : null,
     }
     setRunning(true)
-    // Debounced; the runner cancels any earlier request, and stale answers are dropped by ID.
+    // The ID advances the moment the inputs change, so a result for the previous inputs can never be
+    // shown as current, even if it arrives during the debounce window.
+    const id = ++reqId.current
     const timer = window.setTimeout(() => {
-      const id = ++reqId.current
       runner.current?.request(input, (r) => {
         if (id === reqId.current) {
           setResult(r)

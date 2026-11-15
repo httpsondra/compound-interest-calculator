@@ -2092,6 +2092,10 @@
 .tile--lead dd {
   font-size: var(--fs-xl);
   color: var(--accent-text);
+  /* Keep a money figure on one line; long values scale down instead of splitting mid-number. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
 }
 
 .goal-status {
