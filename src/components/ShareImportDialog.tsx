@@ -47,19 +47,17 @@ export function ShareImportDialog({ pending, scenarios, onChoose, onConfirm, onC
       aria-labelledby={titleId}
       aria-describedby={bodyId}
       onKeyDown={(e) => {
-        // Explicit containment: Tab wraps inside the dialog instead of leaving it for the browser UI.
+        // Tab order is handled here, not by the browser: Tab and Shift+Tab always move between the
+        // dialog's own controls and wrap around, so focus can never leave for the page behind.
         if (e.key !== 'Tab' || !ref.current) return
         const items = Array.from(ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [href]'))
         if (items.length === 0) return
-        const first = items[0]
-        const last = items[items.length - 1]
-        if (e.shiftKey && (document.activeElement === first || !ref.current.contains(document.activeElement))) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
+        e.preventDefault()
+        const idx = items.indexOf(document.activeElement as HTMLElement)
+        let next = idx === -1 ? (e.shiftKey ? items.length - 1 : 0) : idx + (e.shiftKey ? -1 : 1)
+        if (next < 0) next = items.length - 1
+        if (next >= items.length) next = 0
+        items[next].focus()
       }}
       onClose={() => {
         // Escape (or any close) while still pending counts as cancel. Confirm/Cancel clear `pending`

@@ -53,6 +53,7 @@ export const cs: Dict = {
     useOther: 'Použít plány z jiné karty',
     keepMine: 'Ponechat plány z této karty',
     failed: 'Tuto volbu nelze bezpečně provést (prohlížeč nedokázal uložit zálohu), takže se nic nezměnilo. Uvolněte úložiště prohlížeče a zkuste to znovu.',
+    unreadable: 'Uložené plány druhé karty nelze přečíst, takže je tady nelze použít. Místo toho ponechte plány z této karty.',
     saveFailed: 'Tento prohlížeč nemohl uložit vaše plány. Poslední změny zůstanou v této kartě, dokud nebude úložiště znovu k dispozici.',
   },
   scenario: {

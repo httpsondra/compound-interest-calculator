@@ -2090,12 +2090,10 @@
 }
 
 .tile--lead dd {
-  font-size: var(--fs-xl);
   color: var(--accent-text);
-  /* Keep a money figure on one line; long values scale down instead of splitting mid-number. */
+  /* A money figure stays on one line and scales down to fit its tile (never clipped, never split). */
+  font-size: clamp(18px, 1.35vw, var(--fs-xl));
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: clip;
 }
 
 .goal-status {

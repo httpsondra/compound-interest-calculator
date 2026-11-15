@@ -279,3 +279,15 @@ test('Monte Carlo watchdog: a worker that never answers is retried and the page 
   await expect(page.locator('.tiles').first()).toBeVisible({ timeout: 100_000 })
   await expect(page.getByText('Simulating…')).toHaveCount(0)
 })
+
+test('a worker that hung is not trusted again after leaving and returning to Risk (review P2)', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.route(/mc\.worker/, (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: 'self.onmessage = () => {}' }))
+  await page.goto('/?lang=en#/risk')
+  await expect(page.locator('.tiles').first()).toBeVisible({ timeout: 100_000 })
+  await page.getByRole('link', { name: 'Plan', exact: true }).click()
+  const back = Date.now()
+  await page.getByRole('link', { name: 'Risk', exact: true }).click()
+  await expect(page.locator('.tiles').first()).toBeVisible({ timeout: 20_000 })
+  expect(Date.now() - back).toBeLessThan(8000)
+})

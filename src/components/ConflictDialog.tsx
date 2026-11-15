@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef } from 'react'
 import { useI18n } from '../i18n'
-import type { Conflict } from '../state/store'
+import type { Conflict, ConflictError } from '../state/store'
 import { Icon } from './ui/Icon'
 
 interface Props {
   conflict: Conflict | null
-  /** The last choice could not be carried out safely; nothing was changed. */
-  error: boolean
+  /** The last choice was refused, and nothing was changed. */
+  error: ConflictError
   onResolve: (choice: 'other' | 'mine') => boolean
 }
 
@@ -44,6 +44,19 @@ export function ConflictDialog({ conflict, error, onResolve }: Props) {
       aria-labelledby={titleId}
       aria-describedby={bodyId}
       onCancel={(e) => e.preventDefault()}
+      onKeyDown={(e) => {
+        // Tab order is handled here, not by the browser: Tab and Shift+Tab always move between the
+        // dialog's own controls and wrap around, so focus can never leave for the page behind.
+        if (e.key !== 'Tab' || !ref.current) return
+        const items = Array.from(ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [href]'))
+        if (items.length === 0) return
+        e.preventDefault()
+        const idx = items.indexOf(document.activeElement as HTMLElement)
+        let next = idx === -1 ? (e.shiftKey ? items.length - 1 : 0) : idx + (e.shiftKey ? -1 : 1)
+        if (next < 0) next = items.length - 1
+        if (next >= items.length) next = 0
+        items[next].focus()
+      }}
       onClose={() => {
         if (!document.activeElement || document.activeElement === document.body) document.getElementById('main')?.focus()
       }}
@@ -70,7 +83,7 @@ export function ConflictDialog({ conflict, error, onResolve }: Props) {
           {error && (
             <p className="share-warn" role="alert">
               <Icon name="warning" size={14} />
-              {t.sync.failed}
+              {error === 'unreadable' ? t.sync.unreadable : t.sync.failed}
             </p>
           )}
           <div className="share-actions">

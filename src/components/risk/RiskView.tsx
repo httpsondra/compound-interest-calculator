@@ -12,6 +12,21 @@ import { HelpTip } from '../ui/HelpTip'
 
 const SIM_OPTIONS = ['500', '1000', '2500', '5000'] as const
 
+/**
+ * One runner for the whole page: a worker that hung is not trusted again when the user leaves and
+ * returns to this view. Unmounting only cancels pending work and terminates the current worker.
+ */
+let runnerInstance: McRunner | null = null
+function sharedRunner(): McRunner {
+  if (!runnerInstance) {
+    runnerInstance = new McRunner(
+      typeof Worker === 'undefined' ? null : () => new Worker(new URL('./mc.worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike,
+      runMonteCarlo,
+    )
+  }
+  return runnerInstance
+}
+
 export default function RiskView() {
   const { t, f, fill, duration } = useI18n()
   const { scenario: s, computed } = useApp()
@@ -22,12 +37,7 @@ export default function RiskView() {
   const [running, setRunning] = useState(false)
   const reqId = useRef(0)
   const runner = useRef<McRunner | null>(null)
-  if (runner.current === null) {
-    runner.current = new McRunner(
-      typeof Worker === 'undefined' ? null : () => new Worker(new URL('./mc.worker.ts', import.meta.url), { type: 'module' }) as unknown as WorkerLike,
-      runMonteCarlo,
-    )
-  }
+  if (runner.current === null) runner.current = sharedRunner()
   const plan = computed.plan
 
   useEffect(() => () => runner.current?.dispose(), [])

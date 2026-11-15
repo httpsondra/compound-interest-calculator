@@ -51,6 +51,7 @@ export const en = {
     useOther: 'Use the other tab’s plans',
     keepMine: 'Keep this tab’s plans',
     failed: 'This choice could not be made safely (the browser would not keep a backup), so nothing was changed. Free up browser storage and try again.',
+    unreadable: 'The other tab’s saved plans cannot be read, so they cannot be used here. Keep this tab’s plans instead.',
     saveFailed: 'This browser could not save your plans. Recent changes are kept in this tab until storage is available again.',
   },
   scenario: {
