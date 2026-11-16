@@ -1,0 +1,291 @@
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { I18nProvider, createI18n, detectLang, type Lang } from './i18n'
+import { computeScenario } from './model/compute'
+import { defaultScenario, type Currency, type Scenario } from './model/scenario'
+import { decodeShare, encodeShare } from './model/serialize'
+import { loadDoc, useStore, type Doc } from './state/store'
+import { addScenario, defaultTarget, importNeedsChoice, replaceScenario, type PendingImport } from './state/shareImport'
+import { ShareImportDialog } from './components/ShareImportDialog'
+import { ImportDialog, RecoverDialog } from './components/PlansDialogs'
+import { buildExport, exportFileName } from './state/plans'
+import { ConflictDialog } from './components/ConflictDialog'
+import { AppCtx, type AppCtxValue } from './state/context'
+import { Header, type Theme, type View } from './components/Header'
+import { PlanView } from './components/plan/PlanView'
+import { Toasts, type ToastMsg } from './components/ui/controls'
+
+const CompareView = lazy(() => import('./components/compare/CompareView'))
+const RiskView = lazy(() => import('./components/risk/RiskView'))
+const RetirementView = lazy(() => import('./components/retirement/RetirementView'))
+
+const viewFromHash = (): View => {
+  const h = typeof location !== 'undefined' ? location.hash : ''
+  return h.startsWith('#/compare') ? 'compare' : h.startsWith('#/risk') ? 'risk' : h.startsWith('#/retirement') ? 'retirement' : 'plan'
+}
+
+function readTheme(): Theme {
+  try {
+    const v = localStorage.getItem('investcalc.theme')
+    if (v === 'light' || v === 'dark' || v === 'system') return v
+  } catch {
+    /* ignore */
+  }
+  return 'light' // first visit; a stored preference (including 'system') always wins
+}
+
+/** A scenario decoded from `?s=`; applied after mount so the previous state stays in the undo history. */
+let pendingShared: Scenario | null = null
+/** `?s=` present but not a valid calculation: reported once, then removed from the URL. */
+let invalidShared = false
+
+/** Remove `?s=` only once the import is resolved (imported or cancelled), so a reload restores a pending one. */
+function clearShareParam() {
+  const params = new URLSearchParams(location.search)
+  if (!params.has('s')) return
+  params.delete('s')
+  const qs = params.toString()
+  history.replaceState(null, '', `${location.pathname}${qs ? `?${qs}` : ''}${location.hash}`)
+}
+
+function initialDoc(lang: Lang): Doc {
+  const currency: Currency = lang === 'cs' ? 'CZK' : 'EUR'
+  // Unnamed scenarios stay '' so the placeholder name follows the UI language.
+  const doc = loadDoc(currency, '')
+  const params = new URLSearchParams(location.search)
+  const shared = params.get('s')
+  if (shared) {
+    const sc = decodeShare(shared)
+    // A valid link stays in the URL until the import is decided, so a reload restores it.
+    if (sc) pendingShared = sc
+    else {
+      invalidShared = true
+      clearShareParam()
+    }
+  }
+  return doc
+}
+
+export default function App() {
+  const [lang, setLang] = useState<Lang>(detectLang)
+  const [theme, setTheme] = useState<Theme>(readTheme)
+  const [view, setView] = useState<View>(viewFromHash)
+  const [showReal, setShowReal] = useState(false)
+  const [toasts, setToasts] = useState<ToastMsg[]>([])
+  const toastId = useRef(0)
+  const store = useStore(() => initialDoc(lang))
+  const i18n = useMemo(() => createI18n(lang), [lang])
+  const { t } = i18n
+
+  const toast = useCallback((text: string, action?: ToastMsg['action']) => {
+    const id = ++toastId.current
+    setToasts((xs) => [...xs.slice(-2), { id, text, action }])
+  }, [])
+  // A shared link waiting for a decision. Kept in state (not in the toast list), so unrelated
+  // notifications can never remove it.
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
+  const dismiss = useCallback((id: number) => setToasts((xs) => xs.filter((x) => x.id !== id)), [])
+
+  useEffect(() => {
+    if (invalidShared) {
+      invalidShared = false
+      toast(t.app.sharedInvalid)
+    }
+    const sc = pendingShared
+    if (!sc) return
+    pendingShared = null
+    // A link from someone else never deletes saved work by itself: below the limit it is added
+    // (undoable); at the limit the user chooses which plan to replace.
+    if (!importNeedsChoice(store.doc, sc)) {
+      store.setDoc((d) => addScenario(d, sc))
+      clearShareParam()
+      toast(t.app.sharedLoaded, { label: t.app.undo, run: store.undo })
+      return
+    }
+    setPendingImport({ incoming: sc, targetId: defaultTarget(store.doc) })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const confirmImport = (targetId: string) => {
+    if (!pendingImport) return
+    const next = replaceScenario(store.doc, targetId, pendingImport.incoming)
+    if (!next) {
+      // The chosen plan was removed meanwhile: replace nothing, ask again.
+      setPendingImport({ ...pendingImport, targetId: null })
+      return
+    }
+    store.setDoc(next)
+    setPendingImport(null)
+    clearShareParam()
+    toast(t.app.sharedLoaded, { label: t.app.undo, run: store.undo })
+  }
+  const cancelImport = () => {
+    if (!pendingImport) return
+    setPendingImport(null)
+    clearShareParam()
+    toast(t.app.sharedCancelled)
+  }
+
+  const [dataDialog, setDataDialog] = useState<'import' | 'recover' | null>(null)
+  const exportPlans = useCallback(() => {
+    try {
+      const blob = new Blob([buildExport(store.doc)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = exportFileName()
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast(t.data.exported)
+    } catch {
+      toast(t.sync.saveFailed)
+    }
+  }, [store.doc, t, toast])
+
+  // A failed save is reported once, with a way to keep the plans as a file, instead of being silently lost.
+  useEffect(() => {
+    if (store.storageError) toast(t.sync.saveFailed, { label: t.data.exportAction, run: exportPlans })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.storageError])
+
+  // Language: <html lang>, title, persistence
+  useEffect(() => {
+    document.documentElement.lang = lang
+    document.title = t.meta.title
+    document.querySelector('meta[name="description"]')?.setAttribute('content', t.meta.description)
+    try {
+      localStorage.setItem('investcalc.lang', lang)
+    } catch {
+      /* ignore */
+    }
+  }, [lang, t])
+
+  // Theme
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'system') root.removeAttribute('data-theme')
+    else root.setAttribute('data-theme', theme)
+    try {
+      localStorage.setItem('investcalc.theme', theme)
+    } catch {
+      /* ignore */
+    }
+  }, [theme])
+
+  // Hash routing (deep links: #/compare, #/risk)
+  useEffect(() => {
+    const onHash = () => setView(viewFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  const navigate = (v: View) => {
+    const hash = v === 'plan' ? '' : `#/${v}`
+    if (location.hash !== hash) history.pushState(null, '', `${location.pathname}${location.search}${hash}`)
+    setView(v)
+    window.scrollTo({ top: 0 })
+  }
+
+  // Undo shortcut (outside text inputs, where the browser's own undo applies)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        const el = e.target as HTMLElement
+        if (el.closest('input, textarea, [contenteditable]')) return
+        e.preventDefault()
+        // Undo is off while a saved-plans conflict is open: the dialog must match what gets saved.
+        if (store.conflict) return
+        if (store.canUndo) {
+          store.undo()
+          toast(t.app.undone)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [store, t, toast])
+
+  const active = store.active
+  const deferred = useDeferredValue(active)
+  const computed = useMemo(() => computeScenario(deferred), [deferred])
+
+  const share = async () => {
+    const url = `${location.origin}${location.pathname}?s=${encodeShare(active)}${lang === 'cs' ? '&lang=cs' : '&lang=en'}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast(t.app.shareCopied)
+    } catch {
+      history.replaceState(null, '', url)
+      toast(t.app.shareFailed)
+    }
+  }
+
+  const reset = () => {
+    store.update((s) => ({ ...defaultScenario(s.currency, s.name), id: s.id }))
+    toast(t.app.resetDone, { label: t.app.undo, run: store.undo })
+  }
+
+  const ctx: AppCtxValue = {
+    store,
+    scenario: active,
+    update: store.update,
+    computed,
+    stale: deferred !== active,
+    showReal,
+    setShowReal,
+    toast,
+  }
+
+  return (
+    <I18nProvider lang={lang}>
+      <AppCtx.Provider value={ctx}>
+        <a className="skip-link" href="#main">
+          {t.app.skip}
+        </a>
+        <div className="aurora-bg" aria-hidden="true" />
+        <Header
+          view={view}
+          onView={navigate}
+          lang={lang}
+          onLang={setLang}
+          theme={theme}
+          onTheme={setTheme}
+          onShare={share}
+          onExport={exportPlans}
+          onImport={() => setDataDialog('import')}
+          onRecover={() => setDataDialog('recover')}
+        />
+        <main id="main" className="page" tabIndex={-1}>
+          {view === 'plan' && <PlanView onReset={reset} onRetirement={() => navigate('retirement')} />}
+          {view !== 'plan' && (
+            <Suspense fallback={<div className="view-loading" aria-busy="true" />}>
+              {view === 'compare' ? (
+                <CompareView onOpen={() => navigate('plan')} />
+              ) : view === 'retirement' ? (
+                <RetirementView onCompare={() => navigate('compare')} />
+              ) : (
+                <RiskView />
+              )}
+            </Suspense>
+          )}
+        </main>
+        <footer className="footer">
+          <p>{t.app.disclaimer}</p>
+          <p className="footer-meta">InvestCalc · investcalc.dev</p>
+        </footer>
+        <ConflictDialog conflict={store.conflict} error={store.conflictError} onResolve={store.resolveConflict} />
+        <ShareImportDialog
+          pending={pendingImport}
+          scenarios={store.doc.scenarios}
+          onChoose={(id) => setPendingImport((p) => (p ? { ...p, targetId: id } : p))}
+          onConfirm={confirmImport}
+          onCancel={cancelImport}
+        />
+        <RecoverDialog open={dataDialog === 'recover'} onClose={() => setDataDialog(null)} store={store} toast={toast} />
+        <ImportDialog open={dataDialog === 'import'} onClose={() => setDataDialog(null)} store={store} toast={toast} />
+        <Toasts items={toasts} dismiss={dismiss} />
+      </AppCtx.Provider>
+    </I18nProvider>
+  )
+}
+
+export type { Scenario }
