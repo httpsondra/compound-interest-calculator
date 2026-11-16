@@ -6,6 +6,8 @@ import { decodeShare, encodeShare } from './model/serialize'
 import { loadDoc, useStore, type Doc } from './state/store'
 import { addScenario, defaultTarget, importNeedsChoice, replaceScenario, type PendingImport } from './state/shareImport'
 import { ShareImportDialog } from './components/ShareImportDialog'
+import { ImportDialog, RecoverDialog } from './components/PlansDialogs'
+import { buildExport, exportFileName } from './state/plans'
 import { ConflictDialog } from './components/ConflictDialog'
 import { AppCtx, type AppCtxValue } from './state/context'
 import { Header, type Theme, type View } from './components/Header'
@@ -122,10 +124,29 @@ export default function App() {
     toast(t.app.sharedCancelled)
   }
 
-  // A failed save is reported once, instead of being silently lost.
+  const [dataDialog, setDataDialog] = useState<'import' | 'recover' | null>(null)
+  const exportPlans = useCallback(() => {
+    try {
+      const blob = new Blob([buildExport(store.doc)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = exportFileName()
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast(t.data.exported)
+    } catch {
+      toast(t.sync.saveFailed)
+    }
+  }, [store.doc, t, toast])
+
+  // A failed save is reported once, with a way to keep the plans as a file, instead of being silently lost.
   useEffect(() => {
-    if (store.storageError) toast(t.sync.saveFailed)
-  }, [store.storageError, t, toast])
+    if (store.storageError) toast(t.sync.saveFailed, { label: t.data.exportAction, run: exportPlans })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.storageError])
 
   // Language: <html lang>, title, persistence
   useEffect(() => {
@@ -229,6 +250,9 @@ export default function App() {
           theme={theme}
           onTheme={setTheme}
           onShare={share}
+          onExport={exportPlans}
+          onImport={() => setDataDialog('import')}
+          onRecover={() => setDataDialog('recover')}
         />
         <main id="main" className="page" tabIndex={-1}>
           {view === 'plan' && <PlanView onReset={reset} onRetirement={() => navigate('retirement')} />}
@@ -256,6 +280,8 @@ export default function App() {
           onConfirm={confirmImport}
           onCancel={cancelImport}
         />
+        <RecoverDialog open={dataDialog === 'recover'} onClose={() => setDataDialog(null)} store={store} toast={toast} />
+        <ImportDialog open={dataDialog === 'import'} onClose={() => setDataDialog(null)} store={store} toast={toast} />
         <Toasts items={toasts} dismiss={dismiss} />
       </AppCtx.Provider>
     </I18nProvider>

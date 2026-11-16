@@ -20,10 +20,60 @@ async function twoTabs(ctx: BrowserContext): Promise<[Page, Page]> {
   return [A, B]
 }
 
-const stored = (p: Page) =>
-  p.evaluate(() => (JSON.parse(localStorage.getItem('investcalc.v2.scenarios') ?? '{"scenarios":[]}') as { scenarios: { name: string }[] }).scenarios.map((x) => x.name))
-const backups = (p: Page) =>
-  p.evaluate(() => (JSON.parse(localStorage.getItem('investcalc.v2.backups') ?? '[]') as { raw: string }[]).map((b) => b.raw))
+/** The saved plans and backups, read straight from IndexedDB (the application's source of truth). */
+const idb = (p: Page) =>
+  p.evaluate(
+    () =>
+      new Promise<{ doc: string | null; backups: string[] }>((resolve) => {
+        const r = indexedDB.open('investcalc')
+        r.onerror = () => resolve({ doc: null, backups: [] })
+        r.onsuccess = () => {
+          const db = r.result
+          if (!db.objectStoreNames.contains('doc')) return (db.close(), resolve({ doc: null, backups: [] }))
+          const tx = db.transaction(['doc', 'backups'], 'readonly')
+          const g = tx.objectStore('doc').get('plans')
+          const b = tx.objectStore('backups').getAll()
+          tx.oncomplete = () => {
+            db.close()
+            const rows = (b.result as { raw: string; at: number; id: number }[]).sort((x, y) => y.at - x.at || y.id - x.id)
+            resolve({ doc: g.result?.raw ?? null, backups: rows.map((x) => x.raw) })
+          }
+        }
+      }),
+  )
+/**
+ * Two tabs whose backup store refuses writes (quota) once they have loaded. The switch lives in sessionStorage so it
+ * survives reloads of that tab; loading (and migrating) itself is not made to fail here.
+ */
+async function twoTabsBackupsFail(ctx: BrowserContext): Promise<[Page, Page]> {
+  await ctx.addInitScript(() => {
+    const orig = IDBObjectStore.prototype.add
+    IDBObjectStore.prototype.add = function (...a: Parameters<typeof orig>) {
+      if (sessionStorage.getItem('failBackups') === '1') throw new DOMException('full', 'QuotaExceededError') // only backups use add()
+      return orig.apply(this, a)
+    }
+  })
+  const [A, B] = await twoTabs(ctx)
+  for (const p of [A, B]) await p.evaluate(() => sessionStorage.setItem('failBackups', '1'))
+  return [A, B]
+}
+const stored = async (p: Page) => {
+  const d = (await idb(p)).doc
+  return d ? (JSON.parse(d) as { scenarios: { name: string }[] }).scenarios.map((x) => x.name) : []
+}
+const backups = async (p: Page) => (await idb(p)).backups
+/** Wipe IndexedDB and localStorage and plant `seed` as the ORIGINAL (v2) saved plans, as for a returning user. */
+async function resetStorage(p: Page, seed: unknown) {
+  await p.evaluate(async (s) => {
+    await new Promise<void>((res) => {
+      const r = indexedDB.deleteDatabase('investcalc')
+      r.onsuccess = r.onerror = r.onblocked = () => res()
+    })
+    localStorage.clear()
+    localStorage.setItem('investcalc.v2.scenarios', JSON.stringify(s))
+    localStorage.setItem('seeded', '1')
+  }, seed)
+}
 const conflict = (p: Page) => p.getByRole('dialog', { name: 'Your plans changed in another tab' })
 
 /**
@@ -50,10 +100,7 @@ async function concurrentEdits(A: Page, B: Page, opts: { backupsWork?: boolean }
     // (Skipped only by the test that makes backups impossible on purpose: nothing can be preserved there.)
     if (opts.backupsWork !== false)
       await expect.poll(async () => { const all = await everything(A); return all.includes('Alpha renamed by A') && all.includes('Beta edited in B') }, { timeout: 8000, message: 'no edit lost' }).toBe(true)
-    await A.evaluate((seed) => {
-      localStorage.setItem('investcalc.v2.scenarios', JSON.stringify(seed))
-      localStorage.removeItem('investcalc.v2.backups')
-    }, SEED)
+    await resetStorage(A, SEED)
     await Promise.all([A.reload(), B.reload()])
     await Promise.all([A.locator('.scen-name').nth(1).waitFor(), B.locator('.scen-name').nth(1).waitFor()])
   }
@@ -141,7 +188,7 @@ test('a corrupted saved plan is backed up on load and never overwritten silently
   }, corrupt)
   const page = await context.newPage()
   await page.goto('/?lang=en#/compare')
-  await page.waitForTimeout(1200) // an idle load must not write
+  await page.waitForTimeout(1200)
   expect(await page.evaluate(() => localStorage.getItem('investcalc.v2.scenarios'))).toBe(corrupt)
   expect((await backups(page)).some((r) => r === corrupt)).toBe(true)
 })
@@ -173,14 +220,7 @@ test('an unsaved edit in one tab does not produce a conflict in a tab that was o
 })
 
 test('if a backup cannot be kept, the choice is refused: nothing is overwritten and the user is told', async ({ context }) => {
-  await context.addInitScript(() => {
-    const orig = Storage.prototype.setItem
-    Storage.prototype.setItem = function (k: string, v: string) {
-      if (k === 'investcalc.v2.backups') throw new DOMException('full', 'QuotaExceededError')
-      return orig.call(this, k, v)
-    }
-  })
-  const [A, B] = await twoTabs(context)
+  const [A, B] = await twoTabsBackupsFail(context)
   const conflicted = await concurrentEdits(A, B, { backupsWork: false })
   const other = conflicted === A ? B : A
   const storedBefore = await stored(other)
@@ -215,14 +255,7 @@ test('undo after adopting another tab’s save keeps that save in the backups (r
 })
 
 test('“use the other tab’s plans” is refused when this tab’s version cannot be backed up (review P1)', async ({ context }) => {
-  await context.addInitScript(() => {
-    const orig = Storage.prototype.setItem
-    Storage.prototype.setItem = function (k: string, v: string) {
-      if (k === 'investcalc.v2.backups') throw new DOMException('full', 'QuotaExceededError')
-      return orig.call(this, k, v)
-    }
-  })
-  const [A, B] = await twoTabs(context)
+  const [A, B] = await twoTabsBackupsFail(context)
   const conflicted = await concurrentEdits(A, B, { backupsWork: false })
   const other = conflicted === A ? B : A
   const storedBefore = await stored(other)
@@ -239,10 +272,8 @@ test('unreadable saved plans are not overwritten when no backup can be kept (rev
       localStorage.setItem('investcalc.v2.scenarios', raw)
       localStorage.setItem('seeded', '1')
     }
-    const orig = Storage.prototype.setItem
-    Storage.prototype.setItem = function (k: string, v: string) {
-      if (k === 'investcalc.v2.backups') throw new DOMException('full', 'QuotaExceededError')
-      return orig.call(this, k, v)
+    IDBObjectStore.prototype.add = function () {
+      throw new DOMException('full', 'QuotaExceededError') // only the backup store uses add(); the plans use put()
     }
   }, corrupt)
   const page = await context.newPage()
@@ -277,7 +308,7 @@ test('the dialog shows the newest other-tab plans after a second save while it i
   expect(shown).toContain('Newest from other tab')
 })
 
-test('two tabs whose saves fire at the same moment never lose an edit (cross-tab save lock, V5.2.1 regression)', async ({ context }) => {
+test('two tabs whose saves fire at the same moment never lose an edit (transactional revision check)', async ({ context }) => {
   test.setTimeout(75_000)
   // Before the fix, both tabs could read the old stored text, both write, and the later write silently replaced
   // the earlier one: ~3 in 10 runs under load left one edit in neither the plans nor the backups.
@@ -298,10 +329,10 @@ test('closing a tab with an edit still pending (inside the 250 ms save delay) sa
   const [A, B] = await twoTabs(context)
   await A.locator('.scen-name').first().fill('Saved on close')
   await A.close({ runBeforeUnload: true })
-  await expect.poll(() => stored(B)).toContain('Saved on close')
+  await expect.poll(() => stored(B), { timeout: 14_000 }).toContain('Saved on close')
 })
 
-test('without Web Locks the plain save path still keeps both of two simultaneous edits (plans or backups)', async ({ context }) => {
+test('Web Locks being unavailable changes nothing: simultaneous edits are all kept (plans or backups)', async ({ context }) => {
   test.setTimeout(75_000) // three rounds of two tabs, each waiting out the save delay and the eventual backup
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true })
@@ -319,7 +350,7 @@ test('without Web Locks the plain save path still keeps both of two simultaneous
   }
 })
 
-test('if the lock cannot be acquired the save falls back to the plain path and nothing is lost', async ({ context }) => {
+test('a refused lock request does not affect saving (the IndexedDB store does not depend on locks)', async ({ context }) => {
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'locks', { value: { request: () => Promise.reject(new Error('lock refused')) }, configurable: true })
   })

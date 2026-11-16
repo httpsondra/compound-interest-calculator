@@ -1,3 +1,4 @@
+import { seedLegacy } from './helpers'
 import { expect, test, type Page } from '@playwright/test'
 
 async function typeInto(page: Page, label: string, value: string) {
@@ -102,9 +103,8 @@ const LEGACY_V4 = {
   withdrawal: { enabled: true, startYear: 33, endYear: null, strategy: 'fixed', amount: 40_000, frequency: 'monthly', indexed: true, stopContributions: true, rate: 4, maxIncrease: 5, maxDecrease: 2.5, floor: 0 },
 }
 
-/** Seed storage in the next document, after the current page has flushed its own state on pagehide. */
-const seed = (page: Page, s: object) =>
-  page.addInitScript((s) => localStorage.setItem('investcalc.v2.scenarios', JSON.stringify({ scenarios: [s], activeId: (s as { id: string }).id })), s)
+/** Seed the original (v2) saved plans for the next load: a returning user upgrading from an older version. */
+const seed = (page: Page, s: object) => seedLegacy(page, { scenarios: [s], activeId: (s as { id: string }).id })
 
 test('V4.1: a saved V4 plan migrates, and the two inflation questions are separate', async ({ page }) => {
   await seed(page, LEGACY_V4)

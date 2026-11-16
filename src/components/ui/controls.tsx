@@ -333,6 +333,9 @@ export function Menu({
               className={`menu-item${it.danger ? ' menu-item--danger' : ''}`}
               onClick={() => {
                 setOpen(false)
+                // Menu-button pattern: focus goes back to the button first, so anything the item opens (a dialog)
+                // returns focus to a control that still exists when it closes.
+                ;(wrap.current?.querySelector('[aria-haspopup]') as HTMLElement | null)?.focus()
                 it.onSelect()
               }}
             >

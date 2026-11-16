@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { seedLegacy } from './helpers'
 
 /* V5.2.2: final polish. */
 
@@ -83,7 +84,7 @@ test.describe('contribution timeline labels', () => {
     for (const [currency, , periods] of cases) {
       test(`${currency} ${lang}: labels never overlap or clip, and the currency is shown once`, async ({ page }) => {
         await page.goto(`/?lang=${lang}`)
-        await page.evaluate((d) => localStorage.setItem('investcalc.v2.scenarios', JSON.stringify(d)), doc(currency, periods))
+        await seedLegacy(page, doc(currency, periods))
         await page.goto(`/?lang=${lang}`)
         await page.locator('.tl-plot').waitFor()
         await page.waitForTimeout(400)

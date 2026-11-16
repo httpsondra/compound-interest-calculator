@@ -7,7 +7,7 @@ interface Props {
   conflict: Conflict | null
   /** The last choice was refused, and nothing was changed. */
   error: ConflictError
-  onResolve: (choice: 'other' | 'mine') => boolean
+  onResolve: (choice: 'other' | 'mine') => Promise<boolean>
 }
 
 /**

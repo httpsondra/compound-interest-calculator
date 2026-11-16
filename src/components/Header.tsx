@@ -1,5 +1,6 @@
 import { useI18n, type Lang } from '../i18n'
 import { Icon, LogoMark } from './ui/Icon'
+import { Menu } from './ui/controls'
 
 export type View = 'plan' | 'retirement' | 'compare' | 'risk'
 export type Theme = 'system' | 'light' | 'dark'
@@ -14,6 +15,9 @@ export function Header({
   theme,
   onTheme,
   onShare,
+  onExport,
+  onImport,
+  onRecover,
 }: {
   view: View
   onView: (v: View) => void
@@ -22,6 +26,9 @@ export function Header({
   theme: Theme
   onTheme: (t: Theme) => void
   onShare: () => void
+  onExport: () => void
+  onImport: () => void
+  onRecover: () => void
 }) {
   const { t } = useI18n()
   const views: View[] = ['plan', 'retirement', 'compare', 'risk']
@@ -56,6 +63,21 @@ export function Header({
             <Icon name="share" size={16} />
             <span className="hide-sm">{t.app.share}</span>
           </button>
+          <Menu
+            className="header-plans"
+            label={t.data.menuLabel}
+            trigger={
+              <>
+                <Icon name="download" size={16} />
+                <span className="hide-sm">{t.data.menu}</span>
+              </>
+            }
+            items={[
+              { label: t.data.export, onSelect: onExport },
+              { label: t.data.import, onSelect: onImport },
+              { label: t.data.recover, onSelect: onRecover },
+            ]}
+          />
           <div className="lang-toggle" role="group" aria-label={t.app.language}>
             {(['cs', 'en'] as Lang[]).map((l) => (
               <button
