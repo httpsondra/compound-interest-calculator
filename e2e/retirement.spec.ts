@@ -53,6 +53,7 @@ test('retirement planner: FI capital, strategy switching and income-based status
 test('stress test changes outcomes; charts share one crosshair', async ({ page, isMobile }) => {
   await loadFiPreset(page)
   await page.getByRole('link', { name: 'Retirement', exact: true }).click()
+  await page.getByRole('button', { name: /^Market stress test/ }).click()
   const stress = page.getByRole('radio', { name: '−40 % crash' })
   await stress.click()
   await expect(page.getByText('An instant 40 % fall')).toBeVisible()
@@ -72,8 +73,10 @@ test('stress test changes outcomes; charts share one crosshair', async ({ page, 
 test('strategies open side by side in Compare with retirement metrics', async ({ page }) => {
   await loadFiPreset(page)
   await page.getByRole('link', { name: 'Retirement', exact: true }).click()
+  await page.getByRole('button', { name: /^Withdrawal strategies compared/ }).click()
   await page.getByRole('button', { name: 'Open in Compare' }).click()
   await expect(page.locator('.scen')).toHaveCount(4)
+  await page.getByRole('button', { name: 'Show all figures' }).click()
   await expect(page.locator('.ctable')).toContainText('Funds desired income')
   await expect(page.locator('.ctable')).toContainText('Lowest monthly income')
 })
@@ -81,8 +84,8 @@ test('strategies open side by side in Compare with retirement metrics', async ({
 test('Risk view reports the chance of funding the desired income', async ({ page }) => {
   await loadFiPreset(page)
   await page.getByRole('link', { name: 'Risk', exact: true }).click()
-  await expect(page.getByText(/Funds €[\d,]+ \/ month every year/)).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText('Lowest monthly income (median path)')).toBeVisible()
+  await expect(page.getByText(/Chance of at least €[\d,]+ a month in every year/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Lowest monthly income during retirement')).toBeVisible()
 })
 
 test('legacy fixed withdrawals still work and empty state offers to start', async ({ page }) => {

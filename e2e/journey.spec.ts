@@ -126,13 +126,12 @@ test('undo restores a removed timeline period', async ({ page }) => {
 
 test('compare and risk views work', async ({ page }) => {
   await page.getByRole('link', { name: 'Compare' }).click()
-  await page.getByRole('button', { name: 'Create a variant' }).click()
-  await page.getByRole('menuitem', { name: 'Return +1 pp' }).click()
+  await page.getByRole('button', { name: /Return \+1 pp/ }).click()
   await expect(page.locator('.scen')).toHaveCount(2)
   await expect(page.locator('.ctable thead th')).toHaveCount(3)
   await page.getByRole('link', { name: 'Risk' }).click()
-  await expect(page.getByText('Median outcome').first()).toBeVisible()
-  await expect(page.locator('.tile--lead dd')).toHaveText(/€[\d,]+/, { timeout: 15_000 })
+  await expect(page.getByText('Typical', { exact: true }).first()).toBeVisible()
+  await expect(page.locator('.trio-i.is-lead dd:not(.trio-sub)').last()).toHaveText(/€[\d,]+/, { timeout: 15_000 })
 })
 
 test('invalid input shows an accessible error instead of NaN', async ({ page }) => {
@@ -209,8 +208,7 @@ test.describe('currency', () => {
 
   test('comparison never mixes currencies', async ({ page }) => {
     await page.getByRole('link', { name: 'Compare' }).click()
-    await page.getByRole('button', { name: 'Create a variant' }).click()
-    await page.getByRole('menuitem', { name: 'Return +1 pp' }).click()
+    await page.getByRole('button', { name: /Return \+1 pp/ }).click()
     await expect(page.locator('.ct-diff').first()).toBeVisible()
     // Switch the active scenario to another currency
     await page.getByRole('link', { name: 'Plan' }).click()
@@ -256,7 +254,7 @@ test('Monte Carlo falls back to the main thread when the worker cannot load (V4.
   await page.route(/mc\.worker/, (r) => r.abort())
   await page.goto('/?lang=en#/risk')
   await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 15_000 })
-  await expect(page.locator('.risk .tiles, .tiles').first()).toBeVisible()
+  await expect(page.locator('.trio').first()).toBeVisible()
 })
 
 test('Monte Carlo recovers when the worker crashes during a simulation (V4.2 audit item 5)', async ({ page }) => {
@@ -268,7 +266,7 @@ test('Monte Carlo recovers when the worker crashes during a simulation (V4.2 aud
   page.on('pageerror', (e) => errors.push(e.message))
   await page.goto('/?lang=en#/risk')
   await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 20_000 })
-  await expect(page.locator('.tiles').first()).toBeVisible()
+  await expect(page.locator('.trio').first()).toBeVisible()
   expect(errors.filter((e) => !/worker crashed/.test(e))).toEqual([])
 })
 
@@ -283,7 +281,7 @@ test('Monte Carlo stays responsive and settles when parameters change rapidly', 
     await vol.press('Enter')
   }
   await expect(page.getByText('Simulating…')).toHaveCount(0, { timeout: 20_000 })
-  await expect(page.locator('.tiles').first()).toBeVisible()
+  await expect(page.locator('.trio').first()).toBeVisible()
 })
 
 test('Monte Carlo watchdog: a worker that never answers is retried and the page still reaches a result (V4.2 item 2)', async ({ page }) => {
@@ -291,7 +289,7 @@ test('Monte Carlo watchdog: a worker that never answers is retried and the page 
   // The worker loads but never replies (unresponsive, not crashed).
   await page.route(/mc\.worker/, (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: 'self.onmessage = () => {}' }))
   await page.goto('/?lang=en#/risk')
-  await expect(page.locator('.tiles').first()).toBeVisible({ timeout: 100_000 })
+  await expect(page.locator('.trio').first()).toBeVisible({ timeout: 100_000 })
   await expect(page.getByText('Simulating…')).toHaveCount(0)
 })
 
@@ -299,10 +297,10 @@ test('a worker that hung is not trusted again after leaving and returning to Ris
   test.setTimeout(120_000)
   await page.route(/mc\.worker/, (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: 'self.onmessage = () => {}' }))
   await page.goto('/?lang=en#/risk')
-  await expect(page.locator('.tiles').first()).toBeVisible({ timeout: 100_000 })
+  await expect(page.locator('.trio').first()).toBeVisible({ timeout: 100_000 })
   await page.getByRole('link', { name: 'Plan', exact: true }).click()
   const back = Date.now()
   await page.getByRole('link', { name: 'Risk', exact: true }).click()
-  await expect(page.locator('.tiles').first()).toBeVisible({ timeout: 20_000 })
+  await expect(page.locator('.trio').first()).toBeVisible({ timeout: 20_000 })
   expect(Date.now() - back).toBeLessThan(8000)
 })

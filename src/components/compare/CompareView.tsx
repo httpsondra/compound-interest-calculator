@@ -7,6 +7,7 @@ import { evaluateIncome } from '../../engine/income'
 import { MAX_SCENARIOS } from '../../state/store'
 import { useApp } from '../../state/context'
 import { XYChart, type Series } from '../chart/XYChart'
+import { axisUnit, chartTitle } from '../chart/time'
 import { Icon } from '../ui/Icon'
 import { Menu, Segmented } from '../ui/controls'
 import { HelpTip } from '../ui/HelpTip'
@@ -15,9 +16,11 @@ const COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--
 type VariantId = 'plusContribution' | 'returnDown' | 'returnUp' | 'longer' | 'fees'
 
 export default function CompareView({ onOpen }: { onOpen: () => void }) {
-  const { t, f, fill, duration } = useI18n()
+  const i18n = useI18n()
+  const { t, f, fill, duration } = i18n
   const { store, toast } = useApp()
   const [real, setReal] = useState(false)
+  const [showAll, setShowAll] = useState(false)
   const scenarios = store.doc.scenarios
   const summaries = useMemo(() => scenarios.map((s) => computeSummary(s)), [scenarios])
   const full = scenarios.length >= MAX_SCENARIOS
@@ -33,41 +36,58 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
     store.setDoc((d) => ({ ...d, scenarios: [...d.scenarios, sc] }))
   }
 
-  const variant = (id: VariantId) => {
-    const base = active
+  /** A copy of `base` with one change applied, and the name of that change. Pure: used for previews and for adding. */
+  const build = (id: VariantId, base: Scenario): { sc: Scenario; label: string } => {
     const delta = scaledAmount(1000, base.currency)
-    let s: Scenario = { ...base, id: uid('sc') }
+    let sc: Scenario = { ...base, id: uid('sc') }
     let label = ''
     switch (id) {
       case 'plusContribution':
-        s =
+        sc =
           base.contribMode === 'constant'
-            ? { ...s, constant: { ...s.constant, amount: s.constant.amount + delta } }
-            : { ...s, periods: s.periods.map((p) => ({ ...p, id: uid('p'), amount: p.paused ? p.amount : p.amount + delta })) }
+            ? { ...sc, constant: { ...sc.constant, amount: sc.constant.amount + delta } }
+            : { ...sc, periods: sc.periods.map((p) => ({ ...p, id: uid('p'), amount: p.paused ? p.amount : p.amount + delta })) }
         label = fill(t.compare.variants.plusContribution, {
           amount: f.money(delta, base.currency),
           per: base.contribMode === 'constant' ? t.per[base.constant.frequency] : t.per.monthly,
         })
         break
       case 'returnDown':
-        s = { ...s, annualReturn: base.annualReturn - 1 }
+        sc = { ...sc, annualReturn: base.annualReturn - 1 }
         label = t.compare.variants.returnDown
         break
       case 'returnUp':
-        s = { ...s, annualReturn: base.annualReturn + 1 }
+        sc = { ...sc, annualReturn: base.annualReturn + 1 }
         label = t.compare.variants.returnUp
         break
       case 'longer':
-        s = { ...s, horizonYears: Math.min(100, base.horizonYears + 5) }
+        sc = { ...sc, horizonYears: Math.min(100, base.horizonYears + 5) }
         label = t.compare.variants.longer
         break
       case 'fees':
-        s = { ...s, feesEnabled: true, fees: { ...s.fees, annual: (base.feesEnabled ? base.fees.annual : 0) + 1 } }
+        sc = { ...sc, feesEnabled: true, fees: { ...sc.fees, annual: (base.feesEnabled ? base.fees.annual : 0) + 1 } }
         label = t.compare.variants.fees
         break
     }
-    add({ ...s, name: `${name(base, scenarios.indexOf(base))} · ${label}`.slice(0, 60) })
+    return { sc, label }
   }
+
+  const variant = (id: VariantId) => {
+    const { sc, label } = build(id, active)
+    add({ ...sc, name: `${name(active, scenarios.indexOf(active))} · ${label}`.slice(0, 60) })
+  }
+
+  // What each quick preset would do to the final value (single-scenario start screen only).
+  const presets = useMemo(() => {
+    if (scenarios.length !== 1) return []
+    const base = summaries[0]?.result.totals.final
+    return (['plusContribution', 'returnUp', 'returnDown', 'longer', 'fees'] as VariantId[]).map((id) => {
+      const { sc, label } = build(id, scenarios[0])
+      const fin = computeSummary(sc)?.result.totals.final
+      return { id, label, delta: base != null && fin != null ? fin - base : null }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenarios, summaries, t, f])
 
   // Same plan, only the withdrawal rule differs (identical assumptions).
   const strategyVariants = () => {
@@ -187,6 +207,51 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
       : fill(t.compare.scheduleParams, { initial, rate, years })
   }
 
+  /** What a scenario changes compared with the first one: short chips, so the cards show differences, not repeats. */
+  const changes = (s: Scenario, base: Scenario): string[] => {
+    const out: string[] = []
+    if (s.annualReturn !== base.annualReturn) out.push(fill(t.compare.chReturn, { value: f.pct(s.annualReturn, 2) }))
+    if (totalMonths(s) !== totalMonths(base)) out.push(fill(t.compare.chYears, { value: duration(totalMonths(s)) }))
+    if (s.contribMode === 'constant' && base.contribMode === 'constant' && (s.constant.amount !== base.constant.amount || s.constant.frequency !== base.constant.frequency))
+      out.push(fill(t.compare.chContribution, { value: `${f.money(s.constant.amount, s.currency, { compact: true })} ${t.per[s.constant.frequency]}` }))
+    const fee = (x: Scenario) => (x.feesEnabled ? x.fees.annual : 0)
+    if (fee(s) !== fee(base)) out.push(fill(t.compare.chFees, { value: f.pct(fee(s), 2) }))
+    if (s.withdrawal.enabled && base.withdrawal.enabled && s.withdrawal.strategy !== base.withdrawal.strategy) out.push(t.retire.strategies[s.withdrawal.strategy])
+    return out
+  }
+
+  const finalOf = (i: number) => {
+    const sum = summaries[i]
+    if (!sum) return null
+    return real && scenarios[i].inflationEnabled ? sum.result.totals.finalReal : sum.result.totals.final
+  }
+  const base = scenarios[0]
+  const single = scenarios.length === 1
+
+  // The headline: which scenario ends highest and by how much (same currency only: amounts are never converted).
+  let bestLine: string | null = null
+  if (!single && !mixedCurrency) {
+    let bi = 0
+    scenarios.forEach((_, i) => {
+      if ((finalOf(i) ?? -Infinity) > (finalOf(bi) ?? -Infinity)) bi = i
+    })
+    const v = finalOf(bi)
+    const b0 = finalOf(0)
+    if (v != null && b0 != null)
+      bestLine =
+        bi === 0
+          ? fill(t.compare.bestBase, { name: name(scenarios[0], 0), value: f.money(v, currency) })
+          : fill(t.compare.best, { name: name(scenarios[bi], bi), value: f.money(v, currency), delta: f.money(v - b0, currency), base: name(scenarios[0], 0) })
+  }
+
+  // Rows where every scenario gives the same answer say nothing: hidden unless asked for.
+  const rowDiffers = (m: (typeof metrics)[number]) => {
+    const key = (i: number) => (m.text ? m.text(i).value : m.get(i) == null ? '—' : Math.round((m.get(i) as number) * 2) / 2)
+    return scenarios.some((_, i) => key(i) !== key(0))
+  }
+  const visibleMetrics = showAll ? metrics : metrics.filter(rowDiffers)
+  const hiddenCount = metrics.length - metrics.filter(rowDiffers).length
+
   return (
     <div className="compare">
       <header className="view-head">
@@ -197,44 +262,36 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
           </div>
           <p className="view-sub">{fill(t.compare.subtitle, { max: MAX_SCENARIOS })}</p>
         </div>
-        <div className="view-actions">
-          <Menu
-            label={t.compare.variantMenu}
-            align="end"
-            trigger={
-              <span className={`btn btn--primary btn--sm as-span${full ? ' is-disabled' : ''}`}>
-                <Icon name="plus" size={16} />
-                {t.compare.add}
-              </span>
-            }
-            items={(['plusContribution', 'returnDown', 'returnUp', 'longer', 'fees'] as VariantId[]).map((id) => ({
-              label:
-                id === 'plusContribution'
-                  ? fill(t.compare.variants.plusContribution, {
-                      amount: f.money(scaledAmount(1000, active.currency), active.currency),
-                      per: active.contribMode === 'constant' ? t.per[active.constant.frequency] : t.per.monthly,
-                    })
-                  : t.compare.variants[id],
-              disabled: full,
-              onSelect: () => variant(id),
-            })).concat(
-              active.withdrawal.enabled
-                ? [
-                    {
-                      label: t.compare.variants.strategies,
-                      disabled: full,
-                      onSelect: () => strategyVariants(),
-                    },
-                  ]
-                : [],
-            )}
-          />
-          {scenarios.length > 1 && (
+        {!single && (
+          <div className="view-actions">
+            <Menu
+              label={t.compare.variantMenu}
+              align="end"
+              trigger={
+                <span className={`btn btn--primary btn--sm as-span${full ? ' is-disabled' : ''}`}>
+                  <Icon name="plus" size={16} />
+                  {t.compare.add}
+                </span>
+              }
+              items={(['plusContribution', 'returnDown', 'returnUp', 'longer', 'fees'] as VariantId[])
+                .map((id) => ({
+                  label:
+                    id === 'plusContribution'
+                      ? fill(t.compare.variants.plusContribution, {
+                          amount: f.money(scaledAmount(1000, active.currency), active.currency),
+                          per: active.contribMode === 'constant' ? t.per[active.constant.frequency] : t.per.monthly,
+                        })
+                      : t.compare.variants[id],
+                  disabled: full,
+                  onSelect: () => variant(id),
+                }))
+                .concat(active.withdrawal.enabled ? [{ label: t.compare.variants.strategies, disabled: full, onSelect: () => strategyVariants() }] : [])}
+            />
             <button type="button" className="btn btn--ghost btn--sm" onClick={resetCompare}>
               {t.compare.single}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </header>
       {full && <p className="note">{fill(t.compare.max, { max: MAX_SCENARIOS })}</p>}
       {mixedCurrency && (
@@ -249,154 +306,242 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
         </p>
       )}
 
-      <div className="compare-grid">
-        {scenarios.map((s, i) => {
-          const sum = summaries[i]
-          return (
-            <article key={s.id} className={`card scen${s.id === active.id ? ' is-active' : ''}`} style={{ ['--sc' as string]: COLORS[i % COLORS.length] }}>
-              <div className="scen-top">
-                <span className="scen-swatch" aria-hidden="true" />
-                <label className="sr-only" htmlFor={`name-${s.id}`}>
-                  {t.scenario.rename}
-                </label>
-                <input
-                  id={`name-${s.id}`}
-                  className="scen-name"
-                  value={s.name}
-                  placeholder={`${t.scenario.untitled} ${i + 1}`}
-                  maxLength={60}
-                  onChange={(e) =>
-                    store.setDoc((d) => ({ ...d, scenarios: d.scenarios.map((x) => (x.id === s.id ? { ...x, name: e.target.value } : x)) }), `name-${s.id}`)
-                  }
-                />
-                <Menu
-                  label={fill(t.compare.actions, { name: name(s, i) })}
-                  trigger={<Icon name="more" size={18} />}
-                  items={[
-                    { label: t.compare.duplicate, disabled: full, onSelect: () => add({ ...s, id: uid('sc'), name: `${name(s, i)} (${t.compare.copySuffix})`.slice(0, 60) }) },
-                    { label: t.compare.remove, danger: true, disabled: scenarios.length <= 1, onSelect: () => remove(s, i) },
+      {single ? (
+        <section className="card start" aria-labelledby="cmp-start-h">
+          <div className="start-plan">
+            <span className="start-k">{t.compare.startPlan}</span>
+            <label className="sr-only" htmlFor={`name-${base.id}`}>
+              {t.scenario.rename}
+            </label>
+            <input
+              id={`name-${base.id}`}
+              className="scen-name start-name"
+              value={base.name}
+              placeholder={`${t.scenario.untitled} 1`}
+              maxLength={60}
+              onChange={(e) => store.setDoc((d) => ({ ...d, scenarios: d.scenarios.map((x) => (x.id === base.id ? { ...x, name: e.target.value } : x)) }), `name-${base.id}`)}
+            />
+            <p className="start-final">{summaries[0] ? f.money(summaries[0].result.totals.final, base.currency) : '—'}</p>
+            <p className="scen-params">{params(base)}</p>
+          </div>
+          <div className="start-main">
+            <h2 id="cmp-start-h" className="section-title">
+              {t.compare.startTitle}
+            </h2>
+            <p className="start-text">{t.compare.startText}</p>
+            <ul className="presets">
+              {presets.map((p) => (
+                <li key={p.id}>
+                  <button type="button" className="preset" onClick={() => variant(p.id)}>
+                    <span className="preset-label">{p.label}</span>
+                    {p.delta != null && Math.abs(p.delta) >= 0.5 && (
+                      <span className={`preset-effect ${p.delta > 0 ? 'is-pos' : 'is-neg'}`}>
+                        {fill(t.compare.presetEffect, { delta: f.money(p.delta, base.currency, { signed: true, compact: true }) })}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+              {base.withdrawal.enabled && (
+                <li>
+                  <button type="button" className="preset" onClick={strategyVariants}>
+                    <span className="preset-label">{t.compare.variants.strategies}</span>
+                  </button>
+                </li>
+              )}
+            </ul>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => add({ ...base, id: uid('sc'), name: `${name(base, 0)} (${t.compare.copySuffix})`.slice(0, 60) })}>
+              <Icon name="copy" size={15} />
+              {t.compare.duplicateCurrent}
+            </button>
+          </div>
+        </section>
+      ) : (
+        <>
+          {bestLine && (
+            <p className="cmp-best" role="status">
+              {bestLine}
+            </p>
+          )}
+          <div className="compare-grid">
+            {scenarios.map((s, i) => {
+              const v = finalOf(i)
+              const b0 = finalOf(0)
+              const delta = i > 0 && !mixedCurrency && v != null && b0 != null ? v - b0 : null
+              const ch = i > 0 ? changes(s, base) : []
+              return (
+                <article key={s.id} className={`card scen${s.id === active.id ? ' is-active' : ''}`} style={{ ['--sc' as string]: COLORS[i % COLORS.length] }}>
+                  <div className="scen-top">
+                    <span className="scen-swatch" aria-hidden="true" />
+                    <label className="sr-only" htmlFor={`name-${s.id}`}>
+                      {t.scenario.rename}
+                    </label>
+                    <input
+                      id={`name-${s.id}`}
+                      className="scen-name"
+                      value={s.name}
+                      placeholder={`${t.scenario.untitled} ${i + 1}`}
+                      maxLength={60}
+                      onChange={(e) =>
+                        store.setDoc((d) => ({ ...d, scenarios: d.scenarios.map((x) => (x.id === s.id ? { ...x, name: e.target.value } : x)) }), `name-${s.id}`)
+                      }
+                    />
+                    <Menu
+                      label={fill(t.compare.actions, { name: name(s, i) })}
+                      trigger={<Icon name="more" size={18} />}
+                      items={[
+                        { label: t.compare.duplicate, disabled: full, onSelect: () => add({ ...s, id: uid('sc'), name: `${name(s, i)} (${t.compare.copySuffix})`.slice(0, 60) }) },
+                        { label: t.compare.remove, danger: true, disabled: scenarios.length <= 1, onSelect: () => remove(s, i) },
+                      ]}
+                    />
+                  </div>
+                  <p className="scen-final">{v != null ? f.money(v, s.currency) : '—'}</p>
+                  {delta != null && Math.abs(delta) >= 0.5 && (
+                    <p className={`scen-delta ${delta > 0 ? 'is-pos' : 'is-neg'}`}>
+                      {f.money(delta, s.currency, { signed: true })} <span>{fill(t.compare.diff, { name: name(base, 0) })}</span>
+                    </p>
+                  )}
+                  {ch.length > 0 ? (
+                    <ul className="scen-changes">
+                      {ch.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="scen-params">{params(s)}</p>
+                  )}
+                  {s.id === active.id ? (
+                    <span className="chip">{t.compare.active}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => {
+                        store.setDoc((d) => ({ ...d, activeId: s.id }))
+                        onOpen()
+                      }}
+                    >
+                      <Icon name="open" size={15} />
+                      {t.compare.open}
+                    </button>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+
+          <section className="card chart-card" aria-labelledby="cmp-chart-h">
+            <header className="card-head">
+              <h2 id="cmp-chart-h" className="section-title">
+                {t.compare.chartTitle}
+              </h2>
+              {anyInflation && (
+                <Segmented
+                  size="sm"
+                  hideLabel
+                  label={t.results.valueMode}
+                  value={real ? 'real' : 'nominal'}
+                  options={[
+                    { value: 'nominal', label: t.results.nominal },
+                    { value: 'real', label: t.results.real },
                   ]}
+                  onChange={(v) => setReal(v === 'real')}
                 />
+              )}
+            </header>
+            <ul className="legend">
+              {series.map((se) => (
+                <li key={se.id}>
+                  <span className="legend-item">
+                    <span className="legend-swatch" style={{ ['--sw' as string]: se.color }} />
+                    {se.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <XYChart
+              xs={xs}
+              series={series}
+              height={320}
+              ariaLabel={t.compare.chartTitle}
+              yFormat={(v) => f.compact(v)}
+              endFormat={(v) => f.money(v, currency, { compact: true })}
+              tooltipFormat={(v) => f.money(v, currency)}
+              xTickLabel={(y) => String(y)}
+              xUnit={axisUnit(i18n, null)}
+              tooltipTitle={chartTitle(i18n, null)}
+            />
+          </section>
+
+          <section className="card" aria-labelledby="cmp-table-h">
+            <header className="card-head">
+              <div className="title-row">
+                <h2 id="cmp-table-h" className="section-title">
+                  {t.compare.metricsTitle}
+                </h2>
+                <HelpTip topic="compareDiff" label={t.compare.metricsTitle} />
               </div>
-              <p className="scen-params">{params(s)}</p>
-              <p className="scen-final">{sum ? f.money(real && s.inflationEnabled ? sum.result.totals.finalReal : sum.result.totals.final, s.currency) : '—'}</p>
-              {s.id === active.id ? (
-                <span className="chip">{t.compare.active}</span>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => {
-                    store.setDoc((d) => ({ ...d, activeId: s.id }))
-                    onOpen()
-                  }}
-                >
-                  <Icon name="open" size={15} />
-                  {t.compare.open}
+              {(hiddenCount > 0 || showAll) && (
+                <button type="button" className="btn btn--ghost btn--sm" aria-pressed={showAll} onClick={() => setShowAll(!showAll)}>
+                  {showAll ? t.compare.onlyDiff : t.compare.showAll}
                 </button>
               )}
-            </article>
-          )
-        })}
-      </div>
-
-      <section className="card chart-card" aria-labelledby="cmp-chart-h">
-        <header className="card-head">
-          <h2 id="cmp-chart-h" className="section-title">
-            {t.compare.chartTitle}
-          </h2>
-          {anyInflation && (
-            <Segmented
-              size="sm"
-              hideLabel
-              label={t.results.valueMode}
-              value={real ? 'real' : 'nominal'}
-              options={[
-                { value: 'nominal', label: t.results.nominal },
-                { value: 'real', label: t.results.real },
-              ]}
-              onChange={(v) => setReal(v === 'real')}
-            />
-          )}
-        </header>
-        <ul className="legend">
-          {series.map((se) => (
-            <li key={se.id}>
-              <span className="legend-item">
-                <span className="legend-swatch" style={{ ['--sw' as string]: se.color }} />
-                {se.label}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <XYChart
-          xs={xs}
-          series={series}
-          height={320}
-          ariaLabel={t.compare.chartTitle}
-          yFormat={(v) => f.compact(v)}
-          tooltipFormat={(v) => f.money(v, currency)}
-          xTickLabel={(y) => String(y)}
-          tooltipTitle={(m) => (m === 0 ? t.chart.start : fill(t.chart.year, { year: f.num(m / 12, m % 12 ? 1 : 0) }))}
-        />
-      </section>
-
-      <section className="card" aria-labelledby="cmp-table-h">
-        <div className="title-row">
-          <h2 id="cmp-table-h" className="section-title">
-            {t.compare.metricsTitle}
-          </h2>
-          <HelpTip topic="compareDiff" label={t.compare.metricsTitle} />
-        </div>
-        <div className="table-scroll">
-          <table className="ctable">
-            <thead>
-              <tr>
-                <th scope="col">{t.compare.metric}</th>
-                {scenarios.map((s, i) => (
-                  <th key={s.id} scope="col">
-                    <span className="legend-swatch" style={{ ['--sw' as string]: COLORS[i % COLORS.length] }} aria-hidden="true" /> {name(s, i)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.map((m) => (
-                <tr key={m.key}>
-                  <th scope="row">{m.label}</th>
-                  {scenarios.map((s, i) => {
-                    const v = m.get(i)
-                    const base = m.get(0)
-                    if (m.text) {
-                      const tx = m.text(i)
-                      return (
-                        <td key={s.id}>
-                          <span className={`ct-val${tx.tone ? ` is-${tx.tone}` : ''}`}>{tx.value}</span>
-                        </td>
-                      )
-                    }
-                    if (m.goal) {
-                      return <td key={s.id}>{s.goal.enabled && v != null ? fill(t.goal.timeTo, { year: Math.max(1, Math.ceil(v / 12)) }) : t.compare.goalNone}</td>
-                    }
-                    const diff = i > 0 && v != null && base != null && !mixedCurrency ? v - base : null
-                    return (
-                      <td key={s.id}>
-                        <span className="ct-val">{v != null ? f.money(v, s.currency) : '—'}</span>
-                        {diff != null && Math.abs(diff) >= 0.5 && (
-                          <span className={`ct-diff ${(diff > 0) !== !!m.lowerIsBetter ? 'is-pos' : 'is-neg'}`}>
-                            {f.money(diff, s.currency, { signed: true, compact: true })} {fill(t.compare.diff, { name: name(scenarios[0], 0) })}
-                          </span>
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="note">{t.compare.keep}</p>
-      </section>
+            </header>
+            {visibleMetrics.length === 0 ? (
+              <p className="note">{t.compare.sameFigures}</p>
+            ) : (
+              <div className="table-scroll">
+                <table className="ctable">
+                  <thead>
+                    <tr>
+                      <th scope="col">{t.compare.metric}</th>
+                      {scenarios.map((s, i) => (
+                        <th key={s.id} scope="col">
+                          <span className="legend-swatch" style={{ ['--sw' as string]: COLORS[i % COLORS.length] }} aria-hidden="true" /> {name(s, i)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleMetrics.map((m) => (
+                      <tr key={m.key}>
+                        <th scope="row">{m.label}</th>
+                        {scenarios.map((s, i) => {
+                          const v = m.get(i)
+                          const b0 = m.get(0)
+                          if (m.text) {
+                            const tx = m.text(i)
+                            return (
+                              <td key={s.id}>
+                                <span className={`ct-val${tx.tone ? ` is-${tx.tone}` : ''}`}>{tx.value}</span>
+                              </td>
+                            )
+                          }
+                          if (m.goal) {
+                            return <td key={s.id}>{s.goal.enabled && v != null ? fill(t.goal.timeTo, { year: Math.max(1, Math.ceil(v / 12)) }) : t.compare.goalNone}</td>
+                          }
+                          const diff = i > 0 && v != null && b0 != null && !mixedCurrency ? v - b0 : null
+                          return (
+                            <td key={s.id}>
+                              <span className="ct-val">{v != null ? f.money(v, s.currency) : '—'}</span>
+                              {diff != null && Math.abs(diff) >= 0.5 && (
+                                <span className={`ct-diff ${(diff > 0) !== !!m.lowerIsBetter ? 'is-pos' : 'is-neg'}`}>
+                                  {f.money(diff, s.currency, { signed: true, compact: true })} {fill(t.compare.diff, { name: name(scenarios[0], 0) })}
+                                </span>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="note">{t.compare.keep}</p>
+          </section>
+        </>
+      )}
     </div>
   )
 }

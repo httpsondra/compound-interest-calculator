@@ -18,7 +18,8 @@ import { useApp } from '../../state/context'
 import { XYChart, type Series } from '../chart/XYChart'
 import { HelpTip } from '../ui/HelpTip'
 import { Icon } from '../ui/Icon'
-import { Segmented } from '../ui/controls'
+import { Disclosure, Segmented } from '../ui/controls'
+import { axisUnit, chartTitle } from '../chart/time'
 import { WithdrawalControls } from './WithdrawalControls'
 import type { SimResult } from '../../engine/types'
 
@@ -95,9 +96,9 @@ export default function RetirementView({ onCompare }: { onCompare: () => void })
                 <header className="card-head">
                   <div className="title-row">
                     <h2 id="ret-chart-h" className="section-title">
-                      {t.retire.chartsTitle}
+                      {t.retire.chartIncomeTitle}
                     </h2>
-                    <HelpTip topic="retirementIncome" label={t.retire.chartsTitle} />
+                    <HelpTip topic="retirementIncome" label={t.retire.chartIncomeTitle} />
                   </div>
                   {s.inflationEnabled && (
                     <div className="chart-tools">
@@ -117,18 +118,15 @@ export default function RetirementView({ onCompare }: { onCompare: () => void })
                   )}
                 </header>
                 <PairedCharts results={[{ res, label: t.retire.base, color: 'var(--c-value)' }]} real={real} hover={hover} onHover={setHover} />
-              </section>
-              {stats.adjusted.length > 0 && (
-                <section className="block" aria-label={t.retire.adjustTitle}>
-                  <h2 className="section-title">{t.retire.adjustTitle}</h2>
-                  <ul className="insight-list">
-                    {stats.adjusted.slice(0, 6).map((a) => (
+                {stats.adjusted.length > 0 && (
+                  <ul className="insight-list" aria-label={t.retire.adjustTitle}>
+                    {stats.adjusted.slice(0, 3).map((a) => (
                       <li key={a.year}>{fill(t.retire.adjust[a.limit], { year: s.withdrawal.startYear + a.year - 1 })}</li>
                     ))}
-                    {stats.adjusted.length > 6 && <li>{fill(t.retire.adjustMore, { n: stats.adjusted.length - 6 })}</li>}
+                    {stats.adjusted.length > 3 && <li>{fill(t.retire.adjustMore, { n: stats.adjusted.length - 3 })}</li>}
                   </ul>
-                </section>
-              )}
+                )}
+              </section>
               <StressSection real={real} />
               <StrategyTable
                 real={real}
@@ -185,6 +183,9 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
   const dep = stats.depletedAtMonth
   const shortYear = stats.shortfall > 0.5 ? (computed.result?.withdrawalYears.find((y) => y.paid < y.requested - 0.5)?.index ?? 0) + s.withdrawal.startYear : null
   const pick = (n: number, r: number) => (real ? r : n)
+  // Paid in full is not the same as sustainable: flag a large fall in purchasing power even when every withdrawal is paid.
+  const powerLoss = dep == null && shortYear == null && stats.realChange < -10
+  const lastYear = year + (stats.years.filter((y) => y.months === 12).pop() ?? stats.years[stats.years.length - 1]).index
   return (
     <section className="hero" aria-labelledby="ret-hero-h">
       <div className="hero-meta">
@@ -224,13 +225,17 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
           <HelpTip topic="incomeFunding" />
         </p>
       ) : (
-        <p className={`status-line ${shortYear != null ? 'is-warn' : 'is-pos'}`} role="status">
+        <p className={`status-line ${shortYear != null || powerLoss ? 'is-warn' : 'is-pos'}`} role="status">
           <span className="status-dot" aria-hidden="true" />
-          {shortYear != null ? fill(t.wd.planShortFrom, { year: shortYear }) : t.wd.planAllPaid}
+          {shortYear != null
+            ? fill(t.wd.planShortFrom, { year: shortYear })
+            : powerLoss
+              ? fill(t.retire.powerLoss, { pct: f.pct(Math.abs(stats.realChange), 0), year: lastYear })
+              : t.wd.planAllPaid}
           <HelpTip topic="desiredVsActual" />
         </p>
       )}
-      <dl className="hero-stats">
+      <dl className="hero-stats hero-stats--3">
         <div className="stat">
           <dt>{t.retire.finalIncome}</dt>
           <dd>{money(pick(stats.final, stats.finalReal))}</dd>
@@ -243,30 +248,35 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
           <dd>{money(pick(stats.min, stats.minReal))}</dd>
         </div>
         <div className="stat">
-          <dt>{t.retire.peakIncome}</dt>
-          <dd>{money(pick(stats.max, stats.maxReal))}</dd>
-        </div>
-        <div className="stat">
-          <dt>
-            {t.results.withdrawn}
-            <HelpTip topic="withdrawn" label={t.results.withdrawn} />
-          </dt>
-          <dd>{money(stats.totalWithdrawn)}</dd>
-        </div>
-        <div className="stat">
-          <dt>{t.results.endValue}</dt>
-          <dd className={dep != null ? 'is-neg' : undefined}>{money(stats.remaining)}</dd>
-        </div>
-        <div className="stat">
           <dt>
             {dep != null ? t.retire.depletion : t.retire.realChange}
             <HelpTip topic={dep != null ? 'depletion' : 'realIncome'} />
           </dt>
-          <dd className={dep != null ? 'is-neg' : stats.realChange < -0.5 ? 'is-warn' : undefined}>
+          <dd className={dep != null ? 'is-neg' : powerLoss ? 'is-warn' : undefined}>
             {dep != null ? fill(t.results.inYear, { year: Math.ceil(dep / 12) }) : f.pct(stats.realChange, 1, true)}
           </dd>
         </div>
       </dl>
+      <details className="more">
+        <summary>{t.retire.moreFigures}</summary>
+        <dl className="more-grid">
+          <div className="stat">
+            <dt>{t.retire.peakIncome}</dt>
+            <dd>{money(pick(stats.max, stats.maxReal))}</dd>
+          </div>
+          <div className="stat">
+            <dt>
+              {t.results.withdrawn}
+              <HelpTip topic="withdrawn" label={t.results.withdrawn} />
+            </dt>
+            <dd>{money(stats.totalWithdrawn)}</dd>
+          </div>
+          <div className="stat">
+            <dt>{t.results.endValue}</dt>
+            <dd className={dep != null ? 'is-neg' : undefined}>{money(stats.remaining)}</dd>
+          </div>
+        </dl>
+      </details>
     </section>
   )
 }
@@ -287,14 +297,16 @@ function NoGoalCard() {
     })
   }
   return (
-    <section className="card no-goal" aria-labelledby="no-goal-h">
-      <div className="title-row">
-        <h2 id="no-goal-h" className="section-title">
-          {t.wd.noGoalTitle}
-        </h2>
-        <HelpTip topic="financialIndependence" label={t.wd.noGoalTitle} />
+    <section className="no-goal no-goal--row" aria-labelledby="no-goal-h">
+      <div>
+        <div className="title-row">
+          <h2 id="no-goal-h" className="no-goal-title">
+            {t.wd.noGoalTitle}
+          </h2>
+          <HelpTip topic="financialIndependence" label={t.wd.noGoalTitle} />
+        </div>
+        <p className="no-goal-text">{t.wd.noGoalText}</p>
       </div>
-      <p className="no-goal-text">{t.wd.noGoalText}</p>
       <button type="button" className="btn btn--ghost btn--sm" onClick={setGoal}>
         <Icon name="target" size={15} />
         {t.wd.noGoalCta}
@@ -393,13 +405,17 @@ function PairedCharts({
   real,
   hover,
   onHover,
+  portfolio: showPortfolio = true,
 }: {
   results: { res: SimResult; label: string; color: string; dashed?: boolean }[]
   real: boolean
   hover: number | null
   onHover: (i: number | null) => void
+  /** The portfolio chart below the income chart (the stress test shows income only). */
+  portfolio?: boolean
 }) {
-  const { t, f, fill } = useI18n()
+  const i18n = useI18n()
+  const { t, f, fill } = i18n
   const { scenario: s } = useApp()
   const H = totalMonths(s)
   const infl = inflationRate(s)
@@ -407,11 +423,9 @@ function PairedCharts({
   const start = (s.withdrawal.startYear - 1) * 12
   const end = s.withdrawal.endYear != null ? Math.min(H, s.withdrawal.endYear * 12) : H
   const money = (v: number) => f.money(v, s.currency)
-  const title = (m: number) => {
-    if (m === 0) return t.chart.start
-    const year = f.num(m / 12, m % 12 ? 1 : 0)
-    return s.startAge != null ? fill(t.chart.yearAge, { year, age: f.num(s.startAge + m / 12, m % 12 ? 1 : 0) }) : fill(t.chart.year, { year })
-  }
+  const compact = (v: number) => f.money(v, s.currency, { compact: true })
+  const title = chartTitle(i18n, s.startAge)
+  const unit = axisUnit(i18n, s.startAge)
   const tick = (y: number) => (s.startAge != null ? String(s.startAge + y) : String(y))
   const deflate = (v: number, m: number) => (real ? v / Math.pow(1 + infl, m / 12) : v)
 
@@ -430,47 +444,60 @@ function PairedCharts({
     const short = req.some((v, m) => Number.isFinite(v) && v > paid[m] + 0.5)
     const out: Series[] = [{ id: `i${i}`, label: results.length > 1 ? r.label : t.retire.incomePaid, color: r.color, kind: i === 0 ? 'area' : 'line', dashed: r.dashed, values: paid, width: 2 }]
     if (short && i === 0)
-      out.push({ id: `r${i}`, label: t.retire.incomeRequested, color: 'var(--c-warn)', kind: 'line', dashed: true, values: req, width: 1.5 })
+      out.push({ id: `r${i}`, label: t.retire.incomeRequested, color: 'var(--c-warn)', kind: 'line', dashed: true, values: req, width: 1.5, noEndLabel: true })
     return out
   })
   const region = [{ start, end, label: t.withdrawal.title }]
   const goal = incomeTarget(s)
-  const desired = goal && (goal.real === real || inflationRate(s) === 0) ? { value: goal.monthly, label: `${t.retire.desiredShort} ${f.money(goal.monthly, s.currency, { compact: true })}` } : null
+  const desired = goal && (goal.real === real || inflationRate(s) === 0) ? { value: goal.monthly, label: `${t.retire.desiredShort} ${compact(goal.monthly)}` } : null
   const dep = results[0].res.totals.depletedAtMonth
+  // Before the first withdrawal (or after the last) there is no income: say so instead of an empty tooltip.
+  const incomeNote = (m: number) => (m < start ? fill(t.chart.noWithdrawalsYet, { year: s.withdrawal.startYear }) : t.chart.withdrawalsEnded)
   return (
     <div className="paired">
-      <p className="mini-title">{real ? t.chart.valueReal : t.chart.value}</p>
-      <XYChart
-        xs={xs}
-        series={portfolio}
-        height={250}
-        regions={region}
-        markers={dep != null ? [{ month: dep, label: t.retire.depletion, tone: 'neg' }] : []}
-        ariaLabel={`${t.chart.value}: ${results.map((r) => `${r.label} ${money(r.res.totals.final)}`).join(', ')}`}
-        yFormat={(v) => f.compact(v)}
-        tooltipFormat={money}
-        xTickLabel={tick}
-        tooltipTitle={title}
-        hoverIndex={hover}
-        onHover={onHover}
-      />
       <p className="mini-title">
         {t.retire.incomeChart} · {real ? t.results.real : t.results.nominal}
       </p>
       <XYChart
         xs={xs}
         series={income}
-        height={200}
+        height={240}
         regions={region}
         goal={desired}
         ariaLabel={`${t.retire.incomeChart}. ${results.map((r) => r.label).join(', ')}`}
         yFormat={(v) => f.compact(v)}
+        endFormat={compact}
         tooltipFormat={(v) => `${money(v)} ${t.per.monthly}`}
         xTickLabel={tick}
+        xUnit={unit}
         tooltipTitle={title}
+        emptyNote={incomeNote}
         hoverIndex={hover}
         onHover={onHover}
       />
+      {showPortfolio && (
+        <>
+          <p className="mini-title">
+            {t.retire.chartPortfolioTitle} · {real ? t.chart.valueReal : t.chart.value}
+          </p>
+          <XYChart
+            xs={xs}
+            series={portfolio}
+            height={200}
+            regions={region}
+            markers={dep != null ? [{ month: dep, label: t.retire.depletion, tone: 'neg' }] : []}
+            ariaLabel={`${t.chart.value}: ${results.map((r) => `${r.label} ${money(r.res.totals.final)}`).join(', ')}`}
+            yFormat={(v) => f.compact(v)}
+            endFormat={compact}
+            tooltipFormat={money}
+            xTickLabel={tick}
+            xUnit={unit}
+            tooltipTitle={title}
+            hoverIndex={hover}
+            onHover={onHover}
+          />
+        </>
+      )}
       <p className="chart-note">{t.wd.chartNote}</p>
     </div>
   )
@@ -502,27 +529,26 @@ function StressSection({ real }: { real: boolean }) {
     { label: t.retire.initialIncome, base: money(pick(b, 'initial')), stress: money(pick(x, 'initial')), worse: pick(x, 'initial') < pick(b, 'initial') - 0.5 },
     { label: t.retire.lowestIncome, base: money(pick(b, 'min')), stress: money(pick(x, 'min')), worse: pick(x, 'min') < pick(b, 'min') - 0.5 },
     { label: t.retire.finalIncome, base: money(pick(b, 'final')), stress: money(pick(x, 'final')), worse: pick(x, 'final') < pick(b, 'final') - 0.5 },
-    { label: t.results.withdrawn, base: money(b.totalWithdrawn), stress: money(x.totalWithdrawn), worse: x.totalWithdrawn < b.totalWithdrawn - 0.5 },
     { label: t.results.endValue, base: money(b.remaining), stress: money(x.remaining), worse: x.remaining < b.remaining - 0.5 },
-    {
-      label: t.retire.depletion,
-      base: b.depletedAtMonth != null ? String(Math.ceil(b.depletedAtMonth / 12)) : t.retire.never,
-      stress: x.depletedAtMonth != null ? String(Math.ceil(x.depletedAtMonth / 12)) : t.retire.never,
-      worse: x.depletedAtMonth != null && (b.depletedAtMonth == null || x.depletedAtMonth < b.depletedAtMonth),
-    },
+    ...(b.depletedAtMonth != null || x.depletedAtMonth != null
+      ? [
+          {
+            label: t.retire.depletion,
+            base: b.depletedAtMonth != null ? String(Math.ceil(b.depletedAtMonth / 12)) : t.retire.never,
+            stress: x.depletedAtMonth != null ? String(Math.ceil(x.depletedAtMonth / 12)) : t.retire.never,
+            worse: x.depletedAtMonth != null && (b.depletedAtMonth == null || x.depletedAtMonth < b.depletedAtMonth),
+          },
+        ]
+      : []),
   ]
   return (
-    <section className="card" aria-labelledby="stress-h">
-      <header className="card-head">
-        <div className="title-row">
-          <h2 id="stress-h" className="section-title">
-            {t.retire.stressTitle}
-          </h2>
-          <HelpTip topic="stressTest" label={t.retire.stressTitle} />
-          <HelpTip topic="sequenceRisk" label={t.retire.sequence} />
-        </div>
+    <section className="card card--disc">
+      <Disclosure id="sec-stress" title={t.retire.stressTitle} summary={t.retire.stressHint} icon={<Icon name="warning" size={15} />}>
+      <div className="stress-help">
         <span className="tag">{t.retire.hypothetical}</span>
-      </header>
+        <HelpTip topic="stressTest" label={t.retire.stressTitle} />
+        <HelpTip topic="sequenceRisk" label={t.retire.sequence} />
+      </div>
       <div className="stress-kinds" role="radiogroup" aria-label={t.retire.stressTitle}>
         {STRESS_KINDS.map((k) => (
           <button key={k} type="button" role="radio" aria-checked={kind === k} className="chip-btn" onClick={() => setKind(k)}>
@@ -570,7 +596,9 @@ function StressSection({ real }: { real: boolean }) {
         real={real}
         hover={hover}
         onHover={setHover}
+        portfolio={false}
       />
+      </Disclosure>
     </section>
   )
 }
@@ -585,19 +613,15 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
   const goalSet = s.retirement.enabled
   const money = (v: number) => f.money(v, s.currency)
   return (
-    <section className="card" aria-labelledby="strat-h">
-      <header className="card-head">
-        <div className="title-row">
-          <h2 id="strat-h" className="section-title">
-            {t.retire.strategyTitle}
-          </h2>
-          <HelpTip topic="strategyCompare" label={t.retire.strategyTitle} />
-        </div>
+    <section className="card card--disc">
+      <Disclosure id="sec-strategies" title={t.retire.strategyTitle} summary={t.retire.strategiesHint} icon={<Icon name="layers" size={15} />}>
+      <div className="stress-help">
+        <HelpTip topic="strategyCompare" label={t.retire.strategyTitle} />
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => onCreate(rows.map((r) => r.strategy))}>
           <Icon name="layers" size={15} />
           {t.retire.openCompare}
         </button>
-      </header>
+      </div>
       <div className="table-scroll">
         <table className="ctable">
           <thead>
@@ -616,7 +640,6 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
                 [t.retire.initialIncome, (st: IncomeStats) => money(real ? st.initialReal : st.initial)],
                 [t.retire.lowestIncome, (st: IncomeStats) => money(real ? st.minReal : st.min)],
                 [t.retire.finalIncome, (st: IncomeStats) => money(real ? st.finalReal : st.final)],
-                [t.results.withdrawn, (st: IncomeStats) => money(st.totalWithdrawn)],
                 [t.results.endValue, (st: IncomeStats) => money(st.remaining)],
                 [t.retire.depletion, (st: IncomeStats) => (st.depletedAtMonth != null ? String(Math.ceil(st.depletedAtMonth / 12)) : t.retire.never)],
               ] as [string, (st: IncomeStats) => string][]
@@ -648,6 +671,7 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
         </table>
       </div>
       <p className="note">{t.retire.strategyNote}</p>
+      </Disclosure>
     </section>
   )
 }

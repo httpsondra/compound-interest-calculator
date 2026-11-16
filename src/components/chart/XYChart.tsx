@@ -17,6 +17,8 @@ export interface Series {
   hidden?: boolean
   /** Exclude from tooltip. */
   quiet?: boolean
+  /** Skip the value label at the line's end (only used when the chart has `endFormat`). */
+  noEndLabel?: boolean
   /** Per-series tooltip formatter (e.g. each scenario in its own currency). */
   format?: (v: number) => string
   width?: number
@@ -44,6 +46,12 @@ interface Props {
   ariaLabel: string
   extraRows?: (index: number) => { label: string; value: string; color?: string }[]
   footer?: ReactNode
+  /** Label each line's last value at its right end (formatter for that label). */
+  endFormat?: (v: number) => string
+  /** Short unit for the x axis (e.g. "Year", "Age"), drawn in the left gutter of the tick row. */
+  xUnit?: string
+  /** Text for hover positions where no series has a value (otherwise the tooltip is not shown there). */
+  emptyNote?: (month: number) => string | null
   /** Index to snap keyboard navigation to (default 12 months). */
   keyStepMonths?: number
   /** Controlled hover (synchronised charts sharing the same `xs`). */
@@ -83,6 +91,9 @@ export function XYChart({
   extraRows,
   footer,
   keyStepMonths = 12,
+  endFormat,
+  xUnit,
+  emptyNote,
   hoverIndex,
   onHover,
 }: Props) {
@@ -129,7 +140,8 @@ export function XYChart({
   }, [visible, goal, height, yFormat])
 
   const left = PAD.left + labelW
-  const plotW = Math.max(40, width - left - PAD.right)
+  const padRight = endFormat ? 58 : PAD.right
+  const plotW = Math.max(40, width - left - padRight)
   const plotH = height - PAD.top - PAD.bottom
   const sx = (m: number) => left + (maxMonth > 0 ? (m / maxMonth) * plotW : 0)
   const sy = (v: number) => PAD.top + plotH - ((v - yLo) / (yHi - yLo || 1)) * plotH
@@ -156,6 +168,22 @@ export function XYChart({
     }
     return { s, line, area }
   })
+
+  const endLabels = (() => {
+    if (!endFormat) return []
+    const items = visible
+      .filter((s) => s.kind !== 'band' && !s.quiet && !s.noEndLabel)
+      .map((s) => {
+        let i = s.values.length - 1
+        while (i >= 0 && !Number.isFinite(s.values[i])) i--
+        return i < 0 ? null : { id: s.id, color: s.color, y: sy(s.values[i]), text: endFormat(s.values[i]), x: px[i] }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => a.y - b.y)
+    // Keep neighbouring labels apart (13 px), staying inside the plot.
+    for (let i = 1; i < items.length; i++) if (items[i].y - items[i - 1].y < 13) items[i].y = items[i - 1].y + 13
+    return items
+  })()
 
   const years = maxMonth / 12
   const step = yearStep(years, Math.max(3, Math.floor(plotW / 64)))
@@ -209,6 +237,8 @@ export function XYChart({
     setAnnounce(`${tooltipTitle(xs[next])}: ${tooltipRows(next).map((r) => `${r.label} ${r.value}`).join(', ')}`)
   }
 
+  const rows0 = hover != null ? tooltipRows(hover) : []
+  const note0 = hover != null && rows0.length === 0 && emptyNote ? emptyNote(xs[hover]) : null
   const hx = hover != null ? px[hover] : 0
   const flip = hover != null && hx > left + plotW * 0.6
 
@@ -260,6 +290,11 @@ export function XYChart({
                 </text>
               </g>
             ))}
+            {xUnit && (
+              <text x={left - 8} y={height - 8} textAnchor="end" className="xy-tick xy-unit">
+                {xUnit}
+              </text>
+            )}
             {xTicks.map((y) => (
               <text key={y} x={sx(y * 12)} y={height - 8} textAnchor={y === 0 ? 'start' : 'middle'} className="xy-tick">
                 {xTickLabel(y)}
@@ -290,6 +325,11 @@ export function XYChart({
               />
             ),
           )}
+          {endLabels.map((l) => (
+            <text key={`e-${l.id}`} x={left + plotW + 6} y={l.y} dy="0.32em" className="xy-end" fill={l.color}>
+              {l.text}
+            </text>
+          ))}
           {goal && Number.isFinite(goal.value) && goal.value <= yHi && (
             <g className="xy-goal">
               <line x1={left} x2={left + plotW} y1={sy(goal.value)} y2={sy(goal.value)} />
@@ -322,13 +362,14 @@ export function XYChart({
             </g>
           )}
         </svg>
-        {hover != null && (
+        {hover != null && (rows0.length > 0 || note0) && (
           <div
             className={`xy-tip${flip ? ' xy-tip--left' : ''}`}
             style={{ transform: `translate(${flip ? hx - 12 : hx + 12}px, ${PAD.top}px) translateX(${flip ? '-100%' : '0'})` }}
           >
             <div className="xy-tip-title">{tooltipTitle(xs[hover])}</div>
-            {tooltipRows(hover).map((r) => (
+            {rows0.length === 0 && note0 && <div className="xy-tip-note">{note0}</div>}
+            {rows0.map((r) => (
               <div key={r.label} className="xy-tip-row">
                 {r.color && <span className="xy-swatch" style={{ background: r.color }} />}
                 <span className="xy-tip-label">{r.label}</span>
