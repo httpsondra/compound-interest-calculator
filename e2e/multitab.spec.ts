@@ -38,7 +38,7 @@ const conflict = (p: Page) => p.getByRole('dialog', { name: 'Your plans changed 
  * run is verified to have lost nothing and the experiment is repeated from the seed (bounded), so the conflict
  * assertions always run against a genuine conflict and are never weakened.
  */
-async function concurrentEdits(A: Page, B: Page): Promise<Page> {
+async function concurrentEdits(A: Page, B: Page, opts: { backupsWork?: boolean } = {}): Promise<Page> {
   for (let attempt = 1; attempt <= 6; attempt++) {
     await Promise.all([B.locator('.scen-name').nth(1).fill('Beta edited in B'), A.locator('.scen-name').first().fill('Alpha renamed by A')])
     await Promise.all([A.waitForTimeout(1500), B.waitForTimeout(1500)])
@@ -47,9 +47,9 @@ async function concurrentEdits(A: Page, B: Page): Promise<Page> {
     if (inA !== inB) return inA ? A : B
     expect(inA || inB, 'two dialogs at once is never valid').toBe(false)
     // No overlap: sequential saves. Nothing may be lost: both edits are saved (or backed up).
-    const all = await everything(A)
-    expect(all).toContain('Alpha renamed by A')
-    expect(all).toContain('Beta edited in B')
+    // (Skipped only by the test that makes backups impossible on purpose: nothing can be preserved there.)
+    if (opts.backupsWork !== false)
+      await expect.poll(async () => { const all = await everything(A); return all.includes('Alpha renamed by A') && all.includes('Beta edited in B') }, { timeout: 8000, message: 'no edit lost' }).toBe(true)
     await A.evaluate((seed) => {
       localStorage.setItem('investcalc.v2.scenarios', JSON.stringify(seed))
       localStorage.removeItem('investcalc.v2.backups')
@@ -181,7 +181,7 @@ test('if a backup cannot be kept, the choice is refused: nothing is overwritten 
     }
   })
   const [A, B] = await twoTabs(context)
-  const conflicted = await concurrentEdits(A, B)
+  const conflicted = await concurrentEdits(A, B, { backupsWork: false })
   const other = conflicted === A ? B : A
   const storedBefore = await stored(other)
   await conflicted.getByRole('button', { name: 'Keep this tab’s plans' }).click()
@@ -223,7 +223,7 @@ test('“use the other tab’s plans” is refused when this tab’s version can
     }
   })
   const [A, B] = await twoTabs(context)
-  const conflicted = await concurrentEdits(A, B)
+  const conflicted = await concurrentEdits(A, B, { backupsWork: false })
   const other = conflicted === A ? B : A
   const storedBefore = await stored(other)
   await conflicted.getByRole('button', { name: 'Use the other tab’s plans' }).click()
@@ -278,6 +278,7 @@ test('the dialog shows the newest other-tab plans after a second save while it i
 })
 
 test('two tabs whose saves fire at the same moment never lose an edit (cross-tab save lock, V5.2.1 regression)', async ({ context }) => {
+  test.setTimeout(75_000)
   // Before the fix, both tabs could read the old stored text, both write, and the later write silently replaced
   // the earlier one: ~3 in 10 runs under load left one edit in neither the plans nor the backups.
   const [A, B] = await twoTabs(context)
@@ -286,8 +287,43 @@ test('two tabs whose saves fire at the same moment never lose an edit (cross-tab
     await Promise.all([A.waitForTimeout(1200), B.waitForTimeout(1200)])
     const shown = (await conflict(A).isVisible()) ? A : (await conflict(B).isVisible()) ? B : null
     if (shown) await shown.getByRole('button', { name: 'Keep this tab’s plans' }).click()
-    const all = await everything(A)
-    expect(all, `round ${round}: edit of tab A kept`).toContain(`Alpha ${round}`)
-    expect(all, `round ${round}: edit of tab B kept`).toContain(`Beta ${round}`)
+    // A write that another tab overwrote is backed up once it has been verified (about 1.6 s): eventual, so polled.
+    await expect.poll(async () => { const all = await everything(A); return all.includes(`Alpha ${round}`) && all.includes(`Beta ${round}`) }, { timeout: 8000, message: `round ${round}: both edits kept` }).toBe(true)
   }
+})
+
+/* ───── V5.2.2: lifecycle and fallback paths ───── */
+
+test('closing a tab with an edit still pending (inside the 250 ms save delay) saves it', async ({ context }) => {
+  const [A, B] = await twoTabs(context)
+  await A.locator('.scen-name').first().fill('Saved on close')
+  await A.close({ runBeforeUnload: true })
+  await expect.poll(() => stored(B)).toContain('Saved on close')
+})
+
+test('without Web Locks the plain save path still keeps both of two simultaneous edits (plans or backups)', async ({ context }) => {
+  test.setTimeout(75_000) // three rounds of two tabs, each waiting out the save delay and the eventual backup
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'locks', { value: undefined, configurable: true })
+  })
+  const [A, B] = await twoTabs(context)
+  expect(await A.evaluate(() => (navigator as { locks?: unknown }).locks)).toBeUndefined()
+  for (let round = 0; round < 3; round++) {
+    await Promise.all([B.locator('.scen-name').nth(1).fill(`Beta ${round}`), A.locator('.scen-name').first().fill(`Alpha ${round}`)])
+    await Promise.all([A.waitForTimeout(1200), B.waitForTimeout(1200)])
+    const shown = (await conflict(A).isVisible()) ? A : (await conflict(B).isVisible()) ? B : null
+    if (shown) await shown.getByRole('button', { name: 'Keep this tab’s plans' }).click()
+    // Without the lock the second tab's backup of its own just-replaced write is made when it notices the
+    // other save (storage event, or the 2 s check): eventual, so it is polled rather than read once.
+    await expect.poll(async () => (await everything(A)).includes(`Alpha ${round}`) && (await everything(A)).includes(`Beta ${round}`), { timeout: 8000, message: `round ${round}: both edits kept` }).toBe(true)
+  }
+})
+
+test('if the lock cannot be acquired the save falls back to the plain path and nothing is lost', async ({ context }) => {
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'locks', { value: { request: () => Promise.reject(new Error('lock refused')) }, configurable: true })
+  })
+  const [A] = await twoTabs(context)
+  await A.locator('.scen-name').first().fill('Saved without lock')
+  await expect.poll(() => stored(A)).toContain('Saved without lock')
 })

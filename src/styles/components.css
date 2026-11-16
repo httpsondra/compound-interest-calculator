@@ -4380,3 +4380,31 @@
 .cmp-caveat { margin: 0; max-width: 64ch; }
 .scen-delta { color: var(--text-2); }
 .xy-goal.xy-goal--off text { fill: var(--c-goal); }
+
+/* ── V5.2.2: strategy table fits a normal desktop column; scrolls only when truly narrow ── */
+.ctable--sticky { table-layout: fixed; min-width: 560px; }
+.ctable--sticky th,
+.ctable--sticky td { padding: 9px 8px; white-space: normal; }
+.ctable--sticky th:first-child { width: 25%; }
+.ctable--sticky thead th:not(:first-child) { vertical-align: bottom; line-height: 1.25; }
+.ctable--sticky td { overflow-wrap: anywhere; }
+.ctable--sticky .ct-val { white-space: nowrap; }
+@media (max-width: 1180px) { .scroll-hint { display: block; } }
+
+/* ── V5.2.2: contribution timeline labels ── */
+.tl-unit { margin: 0 0 2px; font-size: var(--fs-xs); color: var(--text-3); }
+.tl-seg { container-type: inline-size; }
+.tl-val { text-overflow: clip; }
+/* A bar too narrow for its label hides it; the full amount stays in the list, the title and the accessible name. */
+@container (max-width: 27px) { .tl-val { display: none; } }
+
+/* ── V5.2.2: preset cards: action and difference first, explanation secondary, equal heights ── */
+.presets li { display: flex; }
+.preset { align-content: start; gap: 4px; min-height: 92px; }
+.preset-label { font-size: var(--fs-sm); font-weight: 620; color: var(--text); }
+.preset-effect { font-size: var(--fs-xs); color: var(--text-3); font-weight: 450; }
+.preset-effect strong { font-size: var(--fs-md); font-weight: 650; color: var(--text); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.preset-hint { margin-top: auto; padding-top: 2px; font-size: var(--fs-xs); line-height: 1.35; color: var(--text-3); }
+.preset-effect strong { display: block; }
+.scroll-hint--phone { display: none; }
+@media (max-width: 620px) { .scroll-hint--phone { display: block; } }

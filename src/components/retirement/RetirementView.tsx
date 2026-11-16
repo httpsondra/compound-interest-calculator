@@ -8,6 +8,7 @@ import {
   compareStrategies,
   fiAnalysis,
   incomeSeries,
+  incomeVerdict,
   incomeStats,
   stressTest,
   type IncomeStats,
@@ -178,12 +179,13 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
   const year = s.withdrawal.startYear
   const goal = incomeTarget(s)
   const ev = goal && computed.result ? evaluateIncome(computed.result.withdrawalYears, inflationRate(s), goal.monthly, goal.real) : null
+  const verdict = computed.result ? incomeVerdict(s, computed.result, stats) : null
   const dep = stats.depletedAtMonth
-  const shortYear = stats.shortfall > 0.5 ? (computed.result?.withdrawalYears.find((y) => y.paid < y.requested - 0.5)?.index ?? 0) + s.withdrawal.startYear : null
+  const shortYear = verdict?.shortYear ?? null
   const pick = (n: number, r: number) => (real ? r : n)
   // Paid in full is not the same as sustainable: flag a large fall in purchasing power even when every withdrawal is paid.
-  const powerLoss = dep == null && shortYear == null && stats.realChange < -10
-  const lastYear = year + (stats.years.filter((y) => y.months === 12).pop() ?? stats.years[stats.years.length - 1]).index
+  const powerLoss = verdict?.powerLoss ?? false
+  const lastYear = verdict?.lastYear ?? year
   return (
     <section className="hero" aria-labelledby="ret-hero-h">
       <div className="hero-meta">
@@ -223,9 +225,11 @@ function IncomeHero({ stats, real }: { stats: IncomeStats; real: boolean }) {
           <HelpTip topic="incomeFunding" />
         </p>
       ) : (
-        <p className={`status-line ${shortYear != null || powerLoss ? 'is-warn' : 'is-pos'}`} role="status">
+        <p className={`status-line ${shortYear != null || powerLoss || !(stats.initial > 0) ? 'is-warn' : 'is-pos'}`} role="status">
           <span className="status-dot" aria-hidden="true" />
-          {shortYear != null
+          {!(stats.initial > 0)
+            ? t.retire.noIncomeShort
+            : shortYear != null
             ? fill(t.wd.planShortFrom, { year: shortYear })
             : powerLoss
               ? fill(t.retire.powerLoss, { pct: f.pct(Math.abs(stats.realChange), 0), year: lastYear })
@@ -562,7 +566,8 @@ function StressSection({ real }: { real: boolean }) {
         </label>
       )}
       <p className="stress-desc">{t.retire.stressDesc[kind]}</p>
-      <div className="table-scroll">
+      <p className="scroll-hint scroll-hint--phone">{t.compare.scrollHint2}</p>
+      <div className="table-scroll" role="region" aria-label={t.retire.stressTableLabel} tabIndex={0}>
         <table className="ctable">
           <thead>
             <tr>

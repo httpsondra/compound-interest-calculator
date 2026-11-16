@@ -49,6 +49,7 @@ export function Timeline() {
 
   return (
     <div className="tl">
+      <p className="tl-unit">{fill(t.timeline.unit, { currency: s.currency })}</p>
       <div className="tl-chart" role="group" aria-label={fill(t.timeline.ribbonLabel, { summary })}>
         <div className="tl-plot">
           {ranges.map((r, i) => {
@@ -62,10 +63,11 @@ export function Timeline() {
                 className={`tl-seg${r.period.paused ? ' is-paused' : ''}${beyond ? ' is-beyond' : ''}${open === r.period.id ? ' is-selected' : ''}`}
                 style={{ flexGrow: r.period.years, ['--h' as string]: `${h}%` }}
                 onClick={() => expand(r.period.id, true)}
+                title={r.period.paused ? undefined : amountText(r.period.amount, r.period.frequency)}
                 aria-label={`${fill(t.timeline.period, { n: i + 1 })}: ${rangeLabel(r.startYear, r.endYear)} – ${r.period.paused ? t.timeline.paused : amountText(r.period.amount, r.period.frequency)}`}
               >
                 <span className="tl-bar" />
-                <span className="tl-val">{r.period.paused ? t.timeline.paused : f.money(r.period.amount, s.currency, { compact: true })}</span>
+                <span className="tl-val">{r.period.paused ? t.timeline.paused : f.compact(r.period.amount)}</span>
               </button>
             )
           })}

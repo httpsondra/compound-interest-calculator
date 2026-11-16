@@ -170,7 +170,16 @@ export function useStore(initial: () => Doc) {
     const raw = JSON.stringify(docRef.current)
     if (!writeRaw(raw)) return false
     known.current = raw
-    lastWriteAt.current = performance.now()
+    const stamp = (lastWriteAt.current = performance.now())
+    // Write verification. localStorage reads are not guaranteed fresh across tabs (WebKit can serve a stale value
+    // for about a second), so the conflict check can pass on stale text and two simultaneous writers overwrite each
+    // other. A later re-read tells the truth: if another tab's text sits where this write was, this tab's text is
+    // kept as a backup. Skipped when this tab has written again since (a newer own version supersedes it).
+    window.setTimeout(() => {
+      if (lastWriteAt.current !== stamp) return
+      const cur = readRaw()
+      if (cur !== null && cur !== raw) keepBackup(raw)
+    }, 1600)
     adoptedFlag.current = false
     dirty.current = false
     return true

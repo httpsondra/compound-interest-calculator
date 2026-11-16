@@ -450,6 +450,42 @@ export function firstYearBudget(res: SimResult | null): { annual: number; monthl
 
 export { withdrawalPolicy, solveMonotone }
 
+/** Real-terms fall (percent) from which an income that is paid in full is still flagged as eroding. */
+export const POWER_LOSS_PCT = 10
+
+export interface IncomeVerdict {
+  /** Portfolio survival: month it runs out, or null. */
+  depletedAtMonth: number | null
+  /** Plan year of the first withdrawal that is not paid in full, or null. */
+  shortYear: number | null
+  /** Change of real monthly income, first to last full year, percent (0 when the starting real income is 0). */
+  realChange: number
+  /** Every withdrawal is paid and the portfolio survives, yet real income falls by more than POWER_LOSS_PCT. */
+  powerLoss: boolean
+  /** Plan year of the last ranked income year. */
+  lastYear: number
+}
+
+/**
+ * One definition of "is the retirement income sustainable" for Plan and Retirement: survival, payment in full
+ * and purchasing power are three different things. The percentage is never computed from a zero denominator.
+ */
+export function incomeVerdict(s: Scenario, res: SimResult, stats: IncomeStats | null = incomeStats(res, inflationRate(s))): IncomeVerdict | null {
+  if (!s.withdrawal.enabled || !stats) return null
+  const dep = stats.depletedAtMonth
+  const short = stats.shortfall > 0.5 ? res.withdrawalYears.find((y) => y.paid < y.requested - 0.5) : undefined
+  const shortYear = stats.shortfall > 0.5 ? (short?.index ?? 0) + s.withdrawal.startYear : null
+  const realChange = stats.initialReal > 0 ? stats.realChange : 0
+  const lastRanked = stats.years.filter((y) => y.months === 12).pop() ?? stats.years[stats.years.length - 1]
+  return {
+    depletedAtMonth: dep,
+    shortYear,
+    realChange,
+    powerLoss: dep == null && shortYear == null && realChange < -POWER_LOSS_PCT,
+    lastYear: s.withdrawal.startYear + lastRanked.index,
+  }
+}
+
 /** Cheap desired-income check for the headline (no solving). Null without an income goal. */
 export function incomeCheck(s: Scenario, res: SimResult) {
   const goal = incomeTarget(s)

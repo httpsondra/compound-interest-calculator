@@ -355,12 +355,12 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
                 <li key={p.id}>
                   <button type="button" className="preset" onClick={() => variant(p.id)}>
                     <span className="preset-label">{p.label}</span>
-                    <span className="preset-hint">{p.hint}</span>
                     {p.delta != null && Math.abs(p.delta) >= 0.5 && (
                       <span className="preset-effect">
-                        {fill(t.compare.presetEffect, { delta: f.money(p.delta, base.currency, { signed: true, compact: true }) })}
+                        <strong>{f.money(p.delta, base.currency, { signed: true, compact: true })}</strong> {t.compare.presetEffectUnit}
                       </span>
                     )}
+                    <span className="preset-hint">{p.hint}</span>
                   </button>
                 </li>
               ))}
@@ -513,6 +513,7 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
                 </button>
               )}
             </header>
+            {visibleMetrics.length > 0 && <p className="scroll-hint scroll-hint--phone">{t.compare.scrollHint}</p>}
             {visibleMetrics.length === 0 ? (
               <p className="note">{t.compare.sameFigures}</p>
             ) : (

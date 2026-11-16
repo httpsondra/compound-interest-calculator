@@ -65,7 +65,7 @@ test.describe('Strategy comparison starts every rule from the same income', () =
     test.skip(!isMobile, 'phone layout')
     await enableWithdrawals(page)
     await openStrategies(page)
-    await expect(page.locator('.scroll-hint')).toBeVisible()
+    await expect(page.locator("#sec-strategies-panel .scroll-hint").first()).toBeVisible()
     const region = page.locator('#sec-strategies-panel [role="region"][tabindex="0"]')
     await expect(region).toHaveAttribute('aria-label', 'Withdrawal strategies compared')
     const box = await region.evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }))

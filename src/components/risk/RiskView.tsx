@@ -226,8 +226,12 @@ export default function RiskView() {
                         </button>
                       </p>
                     )}
+                    {startIncome === 0 ? (
+                      <p className="note">{t.retire.noIncome}</p>
+                    ) : (
+                      <>
                     <div className="trio-head">
-                      <h3 className="mini-title">{t.risk.lowestTitle}</h3>
+                      <h3 className="mini-title">{t.risk.lowestTitle} · {incomeReal ? t.results.real : t.results.nominal}</h3>
                       <HelpTip topic="lowestIncome" label={t.risk.lowestIncome} />
                     </div>
                     <Trio
@@ -238,7 +242,9 @@ export default function RiskView() {
                       ]}
                       unit={t.per.monthly}
                     />
-                    {startIncome != null && (
+                      </>
+                    )}
+                    {startIncome != null && startIncome > 0 && (
                       <p className="note">
                         {fill(t.risk.startsAt, { value: money(startIncome) })}
                         {startIncome > 0 && result.lowestIncome.p10 < startIncome * 0.7 && (
@@ -256,7 +262,7 @@ export default function RiskView() {
                             {t.risk.depletionProb}
                             <HelpTip topic="depletionProbability" label={t.risk.depletionProb} />
                           </span>
-                          <span className={`depl-v${result.depletionProbability > 0.1 ? ' is-neg' : ''}`}>{f.pct(result.depletionProbability * 100, 0)}</span>
+                          <span className={`depl-v${result.depletionProbability > 0.1 ? ' is-neg' : ''}`}>{result.depletionProbability === 0 ? fill(t.risk.noneIn, { n: f.num(result.simulations) }) : result.depletionProbability < 0.005 ? '<1 %' : f.pct(result.depletionProbability * 100, 0)}</span>
                         </div>
                         {pctStrategy && <p className="note depl-caution">{t.risk.depletionCaution}</p>}
                       </div>

@@ -2,7 +2,7 @@ import type { Ref } from 'react'
 import { useI18n } from '../../i18n'
 import { toReal } from '../../engine/simulate'
 import { withdrawalSummary } from '../../model/compute'
-import { incomeCheck } from '../../model/retirement'
+import { incomeCheck, incomeStats, incomeVerdict } from '../../model/retirement'
 import { incomeTarget, inflationRate, totalMonths } from '../../model/scenario'
 import { useApp } from '../../state/context'
 import { HelpTip } from '../ui/HelpTip'
@@ -43,11 +43,12 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
   if (ws) {
     const dep = tot.depletedAtMonth
     const depYear = dep != null ? Math.ceil(dep / 12) : null
-      // Percentage-of-portfolio policies rarely hit zero even when income collapses:
-    // judge them by the income they pay, not by whether the balance stays positive.
-    const incomeBased = s.withdrawal.strategy === 'currentPct' || s.withdrawal.strategy === 'guardrails'
-    const check = incomeBased ? incomeCheck(s, res) : null
+    // With an income goal the plan is judged by the income it pays (as in Retirement), not by whether the balance
+    // stays positive; without one, survival is reported together with any large loss of purchasing power.
+    const check = incomeCheck(s, res)
     const target = incomeTarget(s)
+    const verdict = incomeVerdict(s, res, incomeStats(res, inflationRate(s)))
+    const powerLoss = !!verdict?.powerLoss
     return (
       <section className={`hero${stale ? ' is-stale' : ''}`} ref={heroRef} aria-labelledby="hero-h">
         <div className="hero-meta">
@@ -69,7 +70,7 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
             <HelpTip topic="todayMoney" label={t.results.real} />
           </p>
         )}
-        {incomeBased && check && target ? (
+        {check && target ? (
           <p className={`status-line ${check.funded ? 'is-pos' : 'is-warn'}`} role="status">
             <span className="status-dot" aria-hidden="true" />
             {check.funded
@@ -79,13 +80,14 @@ export function ResultsHero({ heroRef }: { heroRef?: Ref<HTMLElement> }) {
             <HelpTip topic="incomeFunding" />
           </p>
         ) : (
-          <p className={`status-line ${dep != null ? 'is-neg' : 'is-pos'}`} role="status">
+          <p className={`status-line ${dep != null ? 'is-neg' : powerLoss ? 'is-warn' : 'is-pos'}`} role="status">
             <span className="status-dot" aria-hidden="true" />
             {depYear != null
               ? s.startAge != null
                 ? fill(t.results.runsOutAge, { year: depYear, age: s.startAge + depYear - 1 })
                 : fill(t.results.runsOut, { year: depYear })
               : t.results.lastsAll}
+            {powerLoss && verdict && <span className="status-sub">{fill(t.results.powerLoss, { pct: f.pct(Math.abs(verdict.realChange), 0) })}</span>}
             {dep == null && tot.final > 0 && <span className="status-sub">{fill(t.results.endLeft, { value: money(tot.final) })}</span>}
             <HelpTip topic="depletion" />
           </p>
