@@ -10,13 +10,19 @@ import { WithdrawalControls } from '../retirement/WithdrawalControls'
 import { firstYearBudget } from '../../model/retirement'
 
 export function AdvancedSections() {
-  const { t, f, lang } = useI18n()
+  const { t, f, fill, lang } = useI18n()
   const { scenario: s, update, computed } = useApp()
   const issue = useIssue(computed.issues)
   const affix = f.currencyAffix(s.currency)
   const yrs = lang === 'cs' ? 'let' : 'yrs'
   const w = s.withdrawal
   const firstYear = firstYearBudget(computed.result)
+  const feeParts = [
+    s.fees.annual > 0 ? fill(t.summ.annually, { value: f.pct(s.fees.annual, 2) }) : null,
+    s.fees.entry > 0 ? fill(t.summ.entry, { value: f.pct(s.fees.entry, 2) }) : null,
+    s.fees.fixed > 0 ? fill(t.summ.perDeposit, { value: f.money(s.fees.fixed, s.currency) }) : null,
+  ].filter((x): x is string => x != null)
+  const feesSummary = !s.feesEnabled ? t.fees.summaryOff : feeParts.length ? feeParts.join(' · ') : f.pct(0, 0)
 
   // Level 3: everything beyond the four primary inputs, grouped under one entry. The summary names what
   // is switched on, so nothing hides silently. Values are kept when sections are collapsed.
@@ -44,7 +50,7 @@ export function AdvancedSections() {
         title={t.inputs.growth}
         icon={<Icon name="plus" size={17} />}
         active={s.growthMode !== 'none'}
-        summary={s.growthMode === 'none' ? t.inputs.growthNone : s.growthMode === 'inflation' ? t.inputs.growthInflation : `${f.pct(s.growthRate, 1)}`}
+        summary={s.growthMode === 'none' ? t.summ.off : s.growthMode === 'inflation' ? t.inputs.growthInflation : fill(t.summ.annually, { value: f.pct(s.growthRate, 2) })}
       >
         <Segmented
           size="sm"
@@ -80,7 +86,7 @@ export function AdvancedSections() {
         title={t.goal.title}
         icon={<Icon name="target" size={17} />}
         active={s.goal.enabled}
-        summary={s.goal.enabled ? f.money(s.goal.target, s.currency, { compact: true }) : t.goal.summaryOff}
+        summary={s.goal.enabled ? `${f.money(s.goal.target, s.currency)} · ${fill(t.goal.byYear, { year: s.goal.year })}` : t.goal.summaryOff}
       >
         <Switch label={t.goal.enable} help="goal" checked={s.goal.enabled} onChange={(v) => update((x) => ({ ...x, goal: { ...x.goal, enabled: v } }))} />
         {s.goal.enabled && (
@@ -126,7 +132,7 @@ export function AdvancedSections() {
         title={t.inflation.title}
         icon={<Icon name="layers" size={17} />}
         active={s.inflationEnabled}
-        summary={s.inflationEnabled ? f.pct(s.inflation, 2) : t.inflation.summaryOff}
+        summary={s.inflationEnabled ? fill(t.summ.annually, { value: f.pct(s.inflation, 2) }) : t.inflation.summaryOff}
       >
         <Switch
           label={t.inflation.enable}
@@ -164,7 +170,7 @@ export function AdvancedSections() {
         title={t.fees.title}
         icon={<Icon name="minus" size={17} />}
         active={s.feesEnabled}
-        summary={s.feesEnabled ? `${f.pct(s.fees.annual, 2)} ${lang === 'cs' ? 'p. a.' : 'p.a.'}` : t.fees.summaryOff}
+        summary={feesSummary}
       >
         <Switch label={t.fees.enable} help="fees" checked={s.feesEnabled} onChange={(v) => update((x) => ({ ...x, feesEnabled: v }))} />
         {s.feesEnabled && (
@@ -221,11 +227,11 @@ export function AdvancedSections() {
           !w.enabled
             ? t.withdrawal.summaryOff
             : w.strategy === 'fixed'
-              ? `${f.money(w.amount, s.currency, { compact: true })} ${t.per.monthly}`
-              : `${f.pct(w.rate, 2)}${firstYear ? ` · ≈ ${f.money(firstYear.monthly, s.currency, { compact: true })} ${t.per.monthly}` : ''}`
+              ? fill(t.summ.monthly, { value: f.money(w.amount, s.currency) })
+              : `${fill(t.summ.annually, { value: f.pct(w.rate, 2) })}${firstYear ? ` · ≈ ${fill(t.summ.monthly, { value: f.money(firstYear.monthly, s.currency) })}` : ''}`
         }
       >
-        <WithdrawalControls />
+        <WithdrawalControls compact />
       </Disclosure>
 
       <Disclosure
@@ -233,7 +239,11 @@ export function AdvancedSections() {
         title={t.lumps.title}
         icon={<Icon name="plus" size={17} />}
         active={s.lumpSums.length > 0}
-        summary={s.lumpSums.length ? f.money(s.lumpSums.reduce((a, l) => a + l.amount, 0), s.currency, { compact: true }) : t.lumps.summaryNone}
+        summary={
+          s.lumpSums.length
+            ? fill(t.summ.count, { count: s.lumpSums.length, total: f.money(s.lumpSums.reduce((a, l) => a + l.amount, 0), s.currency) })
+            : t.lumps.summaryNone
+        }
       >
         {s.lumpSums.map((l, i) => (
           <div className="lump-row" key={l.id}>
@@ -291,7 +301,7 @@ export function AdvancedSections() {
         id="sec-timing"
         title={t.advanced.title}
         icon={<Icon name="sparkle" size={17} />}
-        summary={`${s.startAge != null ? `${s.startAge} ${yrs} · ` : ''}${s.timing === 'start' ? t.advanced.timingStart : t.advanced.timingEnd}`}
+        summary={`${s.startAge != null ? `${fill(t.summ.age, { n: s.startAge })} · ` : ''}${s.timing === 'start' ? t.advanced.timingStart : t.advanced.timingEnd}`}
       >
         <NumberField
           id="f-months"

@@ -94,6 +94,15 @@ export const cs: Dict = {
     advancedHint: 'Inflace, poplatky, výběry, cíl…',
     sliderLabel: '{label} – posuvník',
   },
+  summ: {
+    off: 'Vypnuto',
+    annually: '{value} ročně',
+    age: 'Věk {n}',
+    entry: 'vstupní {value}',
+    perDeposit: '{value} za vklad',
+    count: '{count}× · {total}',
+    monthly: '{value} / měsíc',
+  },
   freq: {
     weekly: 'Týdně',
     monthly: 'Měsíčně',
@@ -144,6 +153,7 @@ export const cs: Dict = {
   goal: {
     title: 'Finanční cíl',
     summaryOff: 'Nenastaven',
+    byYear: 'do roku {year}',
     enable: 'Nastavit cílovou částku',
     target: 'Cílová částka',
     year: 'Dosáhnout do roku',
@@ -337,6 +347,7 @@ export const cs: Dict = {
   },
   wd: {
     stepIncome: 'Plánovaný měsíční výběr',
+    rateNote: 'Roční sazba. Jak často se vyplácí, se nastavuje zvlášť.',
     goalTitle: 'Cílový příjem',
     goalOptional: 'nepovinné',
     goalSwitch: 'Porovnat s cílovým příjmem',
@@ -374,8 +385,8 @@ export const cs: Dict = {
     adjust: 'Každoročně navyšovat rentu o inflaci',
     adjustGuard: 'Před uplatněním limitů navýšit loňské výdaje o inflaci',
     adjustRate: 'Předpoklad inflace: {rate} ročně',
-    inflationOff: 'Inflace je vypnutá (Další možnosti → Inflace), částky se tedy s cenami nemění.',
-    noAdjustCurrent: 'Žádné zvláštní navyšování o inflaci: rozpočet se každý rok přepočítá z hodnoty portfolia, takže roste i klesá s vašimi investicemi.',
+    inflationOff: 'Inflace je vypnutá, částky se s cenami nemění.',
+    noAdjustCurrent: 'Bez zvláštního navyšování: rozpočet se každý rok řídí portfoliem.',
     breakdownTitle: 'Váš plánovaný příjem v důchodu',
     rowDesiredToday: 'Zadáno v dnešních cenách',
     rowInflationBefore: 'Inflace do začátku výběrů',

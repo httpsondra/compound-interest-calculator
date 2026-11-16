@@ -30,14 +30,11 @@ const STRATEGY_HELP: Record<WithdrawalStrategy, HelpId> = {
   guardrails: 'guardrails',
 }
 
-function Step({ n, title, help, children }: { n: number; title: string; help?: HelpId; children: ReactNode }) {
+function Step({ title, help, children }: { title: string; help?: HelpId; children: ReactNode }) {
   const id = useId()
   return (
     <section className="wd-step" aria-labelledby={id}>
       <div className="wd-step-head">
-        <span className="wd-step-n" aria-hidden="true">
-          {n}
-        </span>
         <h3 id={id} className="wd-step-title">
           {title}
         </h3>
@@ -52,6 +49,7 @@ function StrategyPicker({ labelledBy }: { labelledBy?: string }) {
   const { t } = useI18n()
   const { scenario: s, update } = useApp()
   const refs = useRef<(HTMLButtonElement | null)[]>([])
+  const noteId = useId()
   const idx = WITHDRAWAL_STRATEGIES.indexOf(s.withdrawal.strategy)
   const set = (v: WithdrawalStrategy) => update((x) => ({ ...x, withdrawal: { ...x.withdrawal, strategy: v } }))
   const onKey = (e: KeyboardEvent) => {
@@ -65,7 +63,8 @@ function StrategyPicker({ labelledBy }: { labelledBy?: string }) {
     refs.current[next]?.focus()
   }
   return (
-    <div className="strategy-grid" role="radiogroup" aria-label={labelledBy ? undefined : t.retire.strategy} aria-labelledby={labelledBy} onKeyDown={onKey}>
+    <>
+    <div className="strategy-grid" role="radiogroup" aria-label={labelledBy ? undefined : t.retire.strategy} aria-labelledby={labelledBy} aria-describedby={noteId} onKeyDown={onKey}>
       {WITHDRAWAL_STRATEGIES.map((v, i) => (
         <button
           key={v}
@@ -80,10 +79,13 @@ function StrategyPicker({ labelledBy }: { labelledBy?: string }) {
           onClick={() => set(v)}
         >
           <span className="strategy-name">{t.retire.strategies[v]}</span>
-          <span className="strategy-desc">{t.retire.strategyDesc[v]}</span>
         </button>
       ))}
     </div>
+    <p className="strategy-note" id={noteId}>
+      {t.retire.strategyDesc[s.withdrawal.strategy]}
+    </p>
+    </>
   )
 }
 
@@ -211,7 +213,7 @@ export function IncomeGoal() {
 }
 
 /** Live explanation of the planned first-year income (all numbers from the engine). */
-export function IncomeBreakdown() {
+export function IncomeBreakdown({ compact = false }: { compact?: boolean }) {
   const { t, f, fill, years, lang } = useI18n()
   const { scenario: s, computed } = useApp()
   const p = plannedIncome(s, computed.result)
@@ -317,8 +319,16 @@ export function IncomeBreakdown() {
           <span className="breakdown-sub">{fill(t.wd.perPayment, { value: money(p.perPayment), freq: t.freq[w.frequency].toLowerCase() })}</span>
         )}
       </div>
-      {explain && <p className="breakdown-explain">{explain}</p>}
-      <p className="breakdown-explain breakdown-during">{during()}</p>
+      {compact ? (
+        // One sentence: why the number differs from what was typed, else how it behaves during retirement.
+        // The full explanations stay in the help for the strategy.
+        <p className="breakdown-explain breakdown-during">{w.strategy === 'fixed' && explain ? explain : during()}</p>
+      ) : (
+        <>
+          {explain && <p className="breakdown-explain">{explain}</p>}
+          <p className="breakdown-explain breakdown-during">{during()}</p>
+        </>
+      )}
       {p.firstUnfundedMonthly > 0.5 && (
         <p className="breakdown-warn" role="status">
           <Icon name="warning" size={14} />
@@ -329,7 +339,11 @@ export function IncomeBreakdown() {
   )
 }
 
-export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean }) {
+/**
+ * `compact` is the Plan view: the essentials plus one sentence of context and a link to the full planner.
+ * Both views edit the same scenario.withdrawal, so there is no second copy of any setting.
+ */
+export function WithdrawalControls({ showEnable = true, compact = false }: { showEnable?: boolean; compact?: boolean }) {
   const { t, f, fill, lang } = useI18n()
   const { scenario: s, update, computed } = useApp()
   const issue = useIssue(computed.issues)
@@ -364,9 +378,6 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
         <>
           <section className="wd-step" aria-labelledby={strategyHead}>
             <div className="wd-step-head">
-              <span className="wd-step-n" aria-hidden="true">
-                1
-              </span>
               <h3 id={strategyHead} className="wd-step-title">
                 {t.retire.strategy}
               </h3>
@@ -378,8 +389,8 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
           </section>
 
           {fixed ? (
-            <Step n={2} title={t.wd.stepIncome} help="withdrawalAmount">
-              <div className="contrib-row">
+            <Step title={t.wd.stepIncome} help="withdrawalAmount">
+              <div>
                 <NumberField
                   id="f-w-income"
                   size="lg"
@@ -394,20 +405,19 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
                   slider={{ min: 0, max: scaledAmount(200_000, s.currency), scale: 'pow' }}
                   onChange={setAmount}
                 />
-                <Select<Frequency>
-                  label={t.retire.payout}
-                  hideLabel
-                  className="freq-select"
-                  value={w.frequency}
-                  options={WITHDRAWAL_FREQUENCIES.map((v) => ({ value: v, label: t.freq[v] }))}
-                  onChange={(v) => setW({ frequency: v })}
-                />
               </div>
+              <Select<Frequency>
+                label={t.retire.payout}
+                className="wd-payout"
+                value={w.frequency}
+                options={WITHDRAWAL_FREQUENCIES.map((v) => ({ value: v, label: t.freq[v] }))}
+                onChange={(v) => setW({ frequency: v })}
+              />
               <BasisToggle />
             </Step>
           ) : (
-            <Step n={2} title={t.retire.rate} help="withdrawalRate">
-              <div className="contrib-row">
+            <Step title={t.retire.rate} help="withdrawalRate">
+              <div>
                 <NumberField
                   id="f-w-rate"
                   size="lg"
@@ -423,15 +433,14 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
                   error={issue('withdrawal.rate')}
                   onChange={(v) => setW({ rate: v }, 'w.rate')}
                 />
-                <Select<Frequency>
-                  label={t.retire.payout}
-                  hideLabel
-                  className="freq-select"
-                  value={w.frequency}
-                  options={WITHDRAWAL_FREQUENCIES.map((v) => ({ value: v, label: t.freq[v] }))}
-                  onChange={(v) => setW({ frequency: v })}
-                />
               </div>
+              <Select<Frequency>
+                label={t.retire.payout}
+                className="wd-payout"
+                value={w.frequency}
+                options={WITHDRAWAL_FREQUENCIES.map((v) => ({ value: v, label: t.freq[v] }))}
+                onChange={(v) => setW({ frequency: v })}
+              />
               <div className="rate-presets" role="group" aria-label={t.retire.presets}>
                 {RATE_PRESETS.map((r) => (
                   <button key={r} type="button" className="chip-btn" aria-pressed={w.rate === r} onClick={() => setW({ rate: r })}>
@@ -440,6 +449,7 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
                 ))}
                 <span className="rate-presets-note">{t.retire.presetsNote}</span>
               </div>
+              <p className="wd-note">{t.wd.rateNote}</p>
               {w.strategy === 'guardrails' && (
                 <div className="guard-box">
                   <div className="pair-row">
@@ -487,7 +497,7 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
             </Step>
           )}
 
-          <Step n={3} title={t.wd.stepTiming} help="withdrawalStart">
+          <Step title={t.wd.stepTiming} help="withdrawalStart">
             <div className="pair-row">
               <NumberField
                 id="f-w-start"
@@ -519,7 +529,7 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
             <Switch label={t.withdrawal.stop} help="withdrawalStop" checked={w.stopContributions} onChange={(v) => setW({ stopContributions: v })} />
           </Step>
 
-          <Step n={4} title={t.wd.stepInflation} help="inflationDuring">
+          <Step title={t.wd.stepInflation} help="inflationDuring">
             {w.strategy === 'currentPct' ? (
               <p className="wd-note">{t.wd.noAdjustCurrent}</p>
             ) : (
@@ -534,8 +544,19 @@ export function WithdrawalControls({ showEnable = true }: { showEnable?: boolean
             )}
           </Step>
 
-          <IncomeBreakdown />
-          <IncomeGoal />
+          <IncomeBreakdown compact={compact} />
+          {compact ? (
+            <a
+              className="link-btn wd-more"
+              href="#/retirement"
+              onClick={() => window.scrollTo({ top: 0 })}
+            >
+              {t.retire.openPlanner}
+              <Icon name="chevronRight" size={14} />
+            </a>
+          ) : (
+            <IncomeGoal />
+          )}
         </>
       )}
     </div>

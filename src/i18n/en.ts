@@ -92,6 +92,15 @@ export const en = {
     advancedHint: 'Inflation, fees, withdrawals, goal…',
     sliderLabel: '{label} slider',
   },
+  summ: {
+    off: 'Off',
+    annually: '{value} annually',
+    age: 'Age {n}',
+    entry: '{value} entry fee',
+    perDeposit: '{value} per deposit',
+    count: '{count}× · {total}',
+    monthly: '{value} / month',
+  },
   freq: {
     weekly: 'Weekly',
     monthly: 'Monthly',
@@ -142,6 +151,7 @@ export const en = {
   goal: {
     title: 'Financial goal',
     summaryOff: 'Not set',
+    byYear: 'by year {year}',
     enable: 'Set a target value',
     target: 'Target value',
     year: 'Reach it by year',
@@ -335,6 +345,7 @@ export const en = {
   },
   wd: {
     stepIncome: 'Planned monthly withdrawal',
+    rateNote: 'A yearly rate. How often it is paid out is set separately.',
     goalTitle: 'Income goal',
     goalOptional: 'optional',
     goalSwitch: 'Compare with an income goal',
@@ -372,8 +383,8 @@ export const en = {
     adjust: 'Increase income with inflation every year',
     adjustGuard: 'Adjust last year’s spending for inflation before the limits',
     adjustRate: 'Inflation assumption: {rate} a year',
-    inflationOff: 'Inflation is off (More options → Inflation), so amounts don’t change with prices.',
-    noAdjustCurrent: 'No separate inflation adjustment: the budget is recalculated from the portfolio every year, so it rises and falls with your investments.',
+    inflationOff: 'Inflation is off, so amounts don’t change with prices.',
+    noAdjustCurrent: 'No separate adjustment: the budget follows the portfolio each year.',
     breakdownTitle: 'Your planned retirement income',
     rowDesiredToday: 'Entered in today’s money',
     rowInflationBefore: 'Inflation until withdrawals',

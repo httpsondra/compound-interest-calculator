@@ -183,20 +183,29 @@ export function Disclosure({
   id?: string
   className?: string
 }) {
+  // Open/closed is local UI state only: it is never derived from scenario data (a switch being on does not
+  // open its section) and nothing here writes to the scenario, so closing keeps every value.
   const [open, setOpen] = useState(defaultOpen)
   const autoId = useId()
   const panelId = `${id ?? autoId}-panel`
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const toggle = () => {
+    // A collapsing panel becomes inert, which would drop focus to <body>: keep it on this header instead.
+    if (open && panelRef.current?.contains(document.activeElement)) btnRef.current?.focus()
+    setOpen(!open)
+  }
   return (
     <section className={`disc${open ? ' is-open' : ''}${active ? ' is-active' : ''}${className ? ` ${className}` : ''}`} id={id}>
       <h3 className="disc-h">
-        <button type="button" className="disc-btn" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
+        <button ref={btnRef} type="button" className="disc-btn" aria-expanded={open} aria-controls={panelId} onClick={toggle}>
           {icon && <span className="disc-icon">{icon}</span>}
           <span className="disc-title">{title}</span>
           {summary != null && <span className="disc-summary">{summary}</span>}
           <Icon name="chevron" size={16} className="disc-chevron" />
         </button>
       </h3>
-      <div className="disc-panel" id={panelId} role="region" aria-label={title} inert={!open}>
+      <div ref={panelRef} className="disc-panel" id={panelId} role="region" aria-label={title} inert={!open}>
         <div className="disc-inner">
           <div className="disc-content">{children}</div>
         </div>
