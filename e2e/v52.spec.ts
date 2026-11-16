@@ -80,7 +80,7 @@ test.describe('Compare', () => {
   test('a single scenario starts with presets, not an empty chart and table', async ({ page }) => {
     await fresh(page, '#/compare')
     await expect(page.getByRole('heading', { name: 'Start a comparison' })).toBeVisible()
-    await expect(page.locator('.preset').first()).toContainText(/at the end/)
+    await expect(page.locator('.preset').first()).toContainText(/final value/)
     await expect(page.locator('.xy-plot')).toHaveCount(0)
     await expect(page.locator('.ctable')).toHaveCount(0)
   })
@@ -89,7 +89,7 @@ test.describe('Compare', () => {
     await fresh(page, '#/compare')
     await page.getByRole('button', { name: /Return \+1 pp/ }).click()
     await expect(page.locator('.scen')).toHaveCount(2)
-    await expect(page.locator('.cmp-best')).toContainText(/ends highest/)
+    await expect(page.locator('.cmp-best')).toContainText(/Highest final portfolio value/)
     await expect(page.locator('.scen-delta').first()).toContainText(/\+€/)
     await expect(page.locator('.scen-changes').first()).toContainText('Return 8%')
     await expect(page.locator('.xy-end')).toHaveCount(2)
@@ -148,7 +148,7 @@ test.describe('Risk', () => {
     await expect(page.locator('#f-goal')).toBeFocused()
     await page.getByRole('link', { name: 'Risk', exact: true }).click()
     await expect(page.locator('.lead-q-val')).toContainText(/\d+\s?%/, { timeout: 20_000 })
-    await expect(page.getByText(/Chance of at least/)).toBeVisible()
+    await expect(page.getByText(/chance of at least/)).toBeVisible()
   })
 
   test('Set an income target leads to the Retirement goal field', async ({ page }) => {

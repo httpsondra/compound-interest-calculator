@@ -148,6 +148,8 @@ export function useStore(initial: () => Doc) {
   const dirty = useRef(false)
   // Set when this tab adopted another tab's saved plans and has not written since.
   const adoptedFlag = useRef(false)
+  // When this tab last wrote (performance.now), for the simultaneous-save safety net.
+  const lastWriteAt = useRef(-Infinity)
   const conflictRef = useRef<Conflict | null>(null)
   const [conflict, setConflict] = useState<Conflict | null>(null)
   const [conflictError, setConflictError] = useState<ConflictError>(null)
@@ -168,6 +170,7 @@ export function useStore(initial: () => Doc) {
     const raw = JSON.stringify(docRef.current)
     if (!writeRaw(raw)) return false
     known.current = raw
+    lastWriteAt.current = performance.now()
     adoptedFlag.current = false
     dirty.current = false
     return true
@@ -218,11 +221,25 @@ export function useStore(initial: () => Doc) {
     else setStorageError(true)
   }, [raiseConflict, save])
 
+  // Timer-driven saves run under a cross-tab lock. Reading the stored text, comparing it and writing are
+  // three steps; without the lock two tabs whose timers fire together can both read the old text and both
+  // write, so the later write silently replaces the earlier one (seen in stress tests, V5.2.1). Inside the lock
+  // `persist` reads fresh, so the second tab sees the first tab's save and raises the conflict instead.
+  // Where Web Locks are unavailable the plain path is used and the adoption backup below is the safety net.
+  const persistLocked = useCallback(() => {
+    const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
+    if (!locks || typeof locks.request !== 'function') {
+      persist()
+      return
+    }
+    locks.request('investcalc-save', () => persist()).catch(() => persist())
+  }, [persist])
+
   useEffect(() => {
     if (!dirty.current) return
-    const id = window.setTimeout(persist, 250)
+    const id = window.setTimeout(persistLocked, 250)
     return () => window.clearTimeout(id)
-  }, [state.doc, persist])
+  }, [state.doc, persistLocked])
 
   useEffect(() => {
     const flush = () => persist()
@@ -238,6 +255,9 @@ export function useStore(initial: () => Doc) {
       }
       const theirs = parseStoredRaw(raw)
       if (!theirs) return
+      // A save of this tab that another tab replaced within moments is kept: the two writes were effectively
+      // simultaneous, so neither tab had the chance to show a conflict.
+      if (known.current !== null && performance.now() - lastWriteAt.current < 3000 && !keepBackup(known.current)) return
       known.current = raw
       adoptedFlag.current = true
       dispatch({ type: 'adopt', doc: theirs })

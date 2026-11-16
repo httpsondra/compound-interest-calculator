@@ -1,6 +1,7 @@
 import { useDeferredValue, useMemo, useState } from 'react'
 import { useI18n } from '../../i18n'
 import { evaluateIncome } from '../../engine/income'
+import { toReal } from '../../engine/simulate'
 import { parseNumber } from '../../lib/format'
 import {
   STRESS_KINDS,
@@ -10,9 +11,10 @@ import {
   incomeStats,
   stressTest,
   type IncomeStats,
+  type StrategyRow,
   type StressKind,
 } from '../../model/retirement'
-import { incomeTarget, inflationRate, totalMonths, uid, type Scenario, type WithdrawalStrategy } from '../../model/scenario'
+import { incomeTarget, inflationRate, totalMonths, uid, type Scenario } from '../../model/scenario'
 import { MAX_SCENARIOS } from '../../state/store'
 import { useApp } from '../../state/context'
 import { XYChart, type Series } from '../chart/XYChart'
@@ -130,22 +132,18 @@ export default function RetirementView({ onCompare }: { onCompare: () => void })
               <StressSection real={real} />
               <StrategyTable
                 real={real}
-                onCreate={(strategies) => {
+                onCreate={(variants) => {
                   const room = MAX_SCENARIOS - store.doc.scenarios.length
                   if (room <= 0) {
                     toast(fill(t.compare.max, { max: MAX_SCENARIOS }))
                     return
                   }
                   const base = scenario
-                  const add: Scenario[] = strategies
-                    .filter((st) => st !== base.withdrawal.strategy)
-                    .slice(0, room)
-                    .map((st) => ({
-                      ...base,
-                      id: uid('sc'),
-                      name: `${base.name || t.scenario.untitled} · ${t.retire.strategies[st]}`.slice(0, 60),
-                      withdrawal: { ...base.withdrawal, strategy: st },
-                    }))
+                  const add: Scenario[] = variants.slice(0, room).map((v) => ({
+                    ...v,
+                    id: uid('sc'),
+                    name: `${base.name || t.scenario.untitled} · ${t.retire.strategies[v.withdrawal.strategy]}`.slice(0, 60),
+                  }))
                   store.setDoc((d) => ({ ...d, scenarios: [...d.scenarios, ...add] }))
                   onCompare()
                 }}
@@ -449,7 +447,7 @@ function PairedCharts({
   })
   const region = [{ start, end, label: t.withdrawal.title }]
   const goal = incomeTarget(s)
-  const desired = goal && (goal.real === real || inflationRate(s) === 0) ? { value: goal.monthly, label: `${t.retire.desiredShort} ${compact(goal.monthly)}` } : null
+  const desired = goal && (goal.real === real || inflationRate(s) === 0) ? { value: goal.monthly, label: `${t.retire.desiredShort} ${compact(goal.monthly)}`, offLabel: fill(t.chart.goalOffScale, { value: compact(goal.monthly) }) } : null
   const dep = results[0].res.totals.depletedAtMonth
   // Before the first withdrawal (or after the last) there is no income: say so instead of an empty tooltip.
   const incomeNote = (m: number) => (m < start ? fill(t.chart.noWithdrawalsYet, { year: s.withdrawal.startYear }) : t.chart.withdrawalsEnded)
@@ -603,33 +601,69 @@ function StressSection({ real }: { real: boolean }) {
   )
 }
 
-function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: WithdrawalStrategy[]) => void }) {
-  const { t, f } = useI18n()
+function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (v: Scenario[]) => void }) {
+  const { t, f, fill } = useI18n()
   const { scenario } = useApp()
   const s = useDeferredValue(scenario)
-  const rows = useMemo(() => compareStrategies(s), [s])
-  if (!rows.length) return null
+  const cmp = useMemo(() => compareStrategies(s), [s])
+  if (!cmp) return null
+  const startMonth = cmp.startMonth
   const infl = inflationRate(s)
   const goalSet = s.retirement.enabled
   const money = (v: number) => f.money(v, s.currency)
+  const w = s.withdrawal
+  const shown = cmp.rows.filter((r) => r.stats)
+  const showReal = s.inflationEnabled && infl > 0
+  const rf = cmp.rows.find((r) => r.strategy === 'fixed')?.result
+  const ri = cmp.rows.find((r) => r.strategy === 'initialPct')?.result
+  const samePath = !!rf && !!ri && Math.abs(rf.totals.final - ri.totals.final) < 0.01 && rf.withdrawalYears.every((y, k) => Math.abs(y.planned - ri.withdrawalYears[k].planned) < 0.01)
+  const idx = w.indexed ? t.retire.after.idxOn : t.retire.after.idxOff
+  const afterText = (r: StrategyRow) => {
+    const rate = r.rate != null ? f.pct(r.rate, 1) : ''
+    switch (r.strategy) {
+      case 'fixed':
+        return fill(t.retire.after.fixed, { idx })
+      case 'initialPct':
+        return fill(t.retire.after.initialPct, { rate, idx })
+      case 'currentPct':
+        return fill(t.retire.after.currentPct, { rate })
+      default:
+        return fill(t.retire.after.guardrails, { rate, up: f.pct(w.maxIncrease, 1), down: f.pct(w.maxDecrease, 1) })
+    }
+  }
   return (
     <section className="card card--disc">
       <Disclosure id="sec-strategies" title={t.retire.strategyTitle} summary={t.retire.strategiesHint} icon={<Icon name="layers" size={15} />}>
+      {cmp.status !== 'ok' ? (
+        <p className="note" role="status">{cmp.status === 'noIncome' ? t.retire.noIncome : t.retire.noPortfolio}</p>
+      ) : (
+      <>
       <div className="stress-help">
         <HelpTip topic="strategyCompare" label={t.retire.strategyTitle} />
-        <button type="button" className="btn btn--ghost btn--sm" onClick={() => onCreate(rows.map((r) => r.strategy))}>
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          onClick={() => onCreate(cmp.rows.filter((r) => r.result && r.strategy !== w.strategy).map((r) => r.variant))}
+        >
           <Icon name="layers" size={15} />
           {t.retire.openCompare}
         </button>
       </div>
-      <div className="table-scroll">
-        <table className="ctable">
+      <p className="note strat-intro">
+        {showReal
+          ? fill(t.retire.strategyIntroReal, { monthly: money(cmp.monthly), real: money(cmp.monthlyReal) })
+          : fill(t.retire.strategyIntro, { monthly: money(cmp.monthly) })}
+      </p>
+      <p className="scroll-hint">{t.retire.strategyScroll}</p>
+      <div className="table-scroll" role="region" aria-label={t.retire.strategyTableLabel} tabIndex={0}>
+        <table className="ctable ctable--sticky">
           <thead>
             <tr>
-              <th scope="col">{t.compare.metric}</th>
-              {rows.map((r) => (
-                <th key={r.strategy} scope="col" className={r.strategy === s.withdrawal.strategy ? 'is-current' : undefined}>
+              <th scope="col">{t.compare.metric} · {real ? t.results.real : t.results.nominal}</th>
+              {cmp.rows.map((r) => (
+                <th key={r.strategy} scope="col" className={r.strategy === w.strategy ? 'is-current' : undefined}>
                   {t.retire.strategies[r.strategy]}
+                  {r.rate != null && <span className="ct-sub">{fill(t.retire.startRate, { rate: f.pct(r.rate, 1) })}</span>}
                 </th>
               ))}
             </tr>
@@ -637,18 +671,26 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
           <tbody>
             {(
               [
-                [t.retire.initialIncome, (st: IncomeStats) => money(real ? st.initialReal : st.initial)],
-                [t.retire.lowestIncome, (st: IncomeStats) => money(real ? st.minReal : st.min)],
-                [t.retire.finalIncome, (st: IncomeStats) => money(real ? st.finalReal : st.final)],
-                [t.results.endValue, (st: IncomeStats) => money(st.remaining)],
-                [t.retire.depletion, (st: IncomeStats) => (st.depletedAtMonth != null ? String(Math.ceil(st.depletedAtMonth / 12)) : t.retire.never)],
-              ] as [string, (st: IncomeStats) => string][]
-            ).map(([label, fn]) => (
+                [
+                  t.retire.initialIncome,
+                  (st: IncomeStats) => money(real ? st.initialReal : st.initial),
+                  (r: StrategyRow) =>
+                    r.plannedAnnual != null && r.paidAnnual != null && r.paidAnnual < r.plannedAnnual - 0.5
+                      ? fill(t.retire.plannedFirst, { value: money(real ? toReal(r.plannedAnnual / 12, startMonth, infl) : r.plannedAnnual / 12) })
+                      : null,
+                ],
+                [t.retire.lowestIncome, (st: IncomeStats) => money(real ? st.minReal : st.min), () => null],
+                [t.retire.finalIncome, (st: IncomeStats) => money(real ? st.finalReal : st.final), () => null],
+                [t.results.endValue, (st: IncomeStats) => money(st.remaining), () => null],
+                [t.retire.depletion, (st: IncomeStats) => (st.depletedAtMonth != null ? String(Math.ceil(st.depletedAtMonth / 12)) : t.retire.never), () => null],
+              ] as [string, (st: IncomeStats) => string, (r: StrategyRow) => string | null][]
+            ).map(([label, fn, sub]) => (
               <tr key={label}>
                 <th scope="row">{label}</th>
-                {rows.map((r) => (
+                {cmp.rows.map((r) => (
                   <td key={r.strategy}>
                     <span className="ct-val">{r.stats ? fn(r.stats) : '—'}</span>
+                    {r.stats && sub(r) && <span className="ct-sub">{sub(r)}</span>}
                   </td>
                 ))}
               </tr>
@@ -656,8 +698,9 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
             {goalSet && (
             <tr>
               <th scope="row">{t.retire.fundsIncome}</th>
-              {rows.map((r) => {
+              {cmp.rows.map((r) => {
                 const goal = incomeTarget(s)!
+                if (!r.result) return <td key={r.strategy}><span className="ct-val">—</span></td>
                 const ev = evaluateIncome(r.result.withdrawalYears, infl, goal.monthly, goal.real)
                 return (
                   <td key={r.strategy}>
@@ -670,7 +713,25 @@ function StrategyTable({ real, onCreate }: { real: boolean; onCreate: (s: Withdr
           </tbody>
         </table>
       </div>
+      <ul className="strat-after" aria-label={t.retire.strategyTitle}>
+        {shown.map((r) => (
+          <li key={r.strategy}>
+            <strong>{t.retire.strategies[r.strategy]}.</strong> {afterText(r)}
+          </li>
+        ))}
+        {cmp.rows
+          .filter((r) => r.unmatched)
+          .map((r) => (
+            <li key={r.strategy} className="is-warn">
+              {fill(t.retire.unmatchedRate, { name: t.retire.strategies[r.strategy], rate: f.pct(r.rate ?? 0, 1) })}
+            </li>
+          ))}
+        {samePath && <li>{t.retire.samePath}</li>}
+        {cmp.rows.some((r) => r.flooredStart) && <li className="is-warn">{t.retire.flooredStart}</li>}
+      </ul>
       <p className="note">{t.retire.strategyNote}</p>
+      </>
+      )}
       </Disclosure>
     </section>
   )

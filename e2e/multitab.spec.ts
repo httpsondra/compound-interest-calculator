@@ -26,15 +26,38 @@ const backups = (p: Page) =>
   p.evaluate(() => (JSON.parse(localStorage.getItem('investcalc.v2.backups') ?? '[]') as { raw: string }[]).map((b) => b.raw))
 const conflict = (p: Page) => p.getByRole('dialog', { name: 'Your plans changed in another tab' })
 
-/** Both tabs have unsaved edits inside the same save window: a real conflict. Returns the tab that shows it. */
+/**
+ * Both tabs have unsaved edits inside the same save window: a real conflict. Returns the tab that shows it.
+ *
+ * Investigation (V5.2.1): the old version made the edits one after the other and then required exactly one dialog.
+ * The app saves 250 ms after an edit. Under parallel load the second `fill` can land after the first tab has
+ * already saved; the second tab then has nothing unsaved, adopts that save silently, and its own edit merges on
+ * top. Reproduced (16 runs, 8 workers): no dialog, stored plans contain BOTH edits, the other version is in the
+ * backups — correct application behaviour, but not the "simultaneous" case. The cause was the test's timing
+ * assumption, not the app. The edits now start together; if the machine was too slow to make them overlap, that
+ * run is verified to have lost nothing and the experiment is repeated from the seed (bounded), so the conflict
+ * assertions always run against a genuine conflict and are never weakened.
+ */
 async function concurrentEdits(A: Page, B: Page): Promise<Page> {
-  await B.locator('.scen-name').nth(1).fill('Beta edited in B')
-  await A.locator('.scen-name').first().fill('Alpha renamed by A')
-  await Promise.all([A.waitForTimeout(1500), B.waitForTimeout(1500)])
-  const inA = await conflict(A).isVisible()
-  const inB = await conflict(B).isVisible()
-  expect(inA !== inB, 'exactly one tab shows the conflict').toBe(true)
-  return inA ? A : B
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    await Promise.all([B.locator('.scen-name').nth(1).fill('Beta edited in B'), A.locator('.scen-name').first().fill('Alpha renamed by A')])
+    await Promise.all([A.waitForTimeout(1500), B.waitForTimeout(1500)])
+    const inA = await conflict(A).isVisible()
+    const inB = await conflict(B).isVisible()
+    if (inA !== inB) return inA ? A : B
+    expect(inA || inB, 'two dialogs at once is never valid').toBe(false)
+    // No overlap: sequential saves. Nothing may be lost: both edits are saved (or backed up).
+    const all = await everything(A)
+    expect(all).toContain('Alpha renamed by A')
+    expect(all).toContain('Beta edited in B')
+    await A.evaluate((seed) => {
+      localStorage.setItem('investcalc.v2.scenarios', JSON.stringify(seed))
+      localStorage.removeItem('investcalc.v2.backups')
+    }, SEED)
+    await Promise.all([A.reload(), B.reload()])
+    await Promise.all([A.locator('.scen-name').nth(1).waitFor(), B.locator('.scen-name').nth(1).waitFor()])
+  }
+  throw new Error('the two edits never overlapped inside one save window after 6 attempts')
 }
 
 /** Every saved name and backup text that exists for this profile (nothing may be missing from both). */
@@ -252,4 +275,19 @@ test('the dialog shows the newest other-tab plans after a second save while it i
   await other.waitForTimeout(1200)
   const shown = await conflicted.getByRole('dialog').innerText()
   expect(shown).toContain('Newest from other tab')
+})
+
+test('two tabs whose saves fire at the same moment never lose an edit (cross-tab save lock, V5.2.1 regression)', async ({ context }) => {
+  // Before the fix, both tabs could read the old stored text, both write, and the later write silently replaced
+  // the earlier one: ~3 in 10 runs under load left one edit in neither the plans nor the backups.
+  const [A, B] = await twoTabs(context)
+  for (let round = 0; round < 5; round++) {
+    await Promise.all([B.locator('.scen-name').nth(1).fill(`Beta ${round}`), A.locator('.scen-name').first().fill(`Alpha ${round}`)])
+    await Promise.all([A.waitForTimeout(1200), B.waitForTimeout(1200)])
+    const shown = (await conflict(A).isVisible()) ? A : (await conflict(B).isVisible()) ? B : null
+    if (shown) await shown.getByRole('button', { name: 'Keep this tab’s plans' }).click()
+    const all = await everything(A)
+    expect(all, `round ${round}: edit of tab A kept`).toContain(`Alpha ${round}`)
+    expect(all, `round ${round}: edit of tab B kept`).toContain(`Beta ${round}`)
+  }
 })

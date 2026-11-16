@@ -332,23 +332,112 @@ export function stressTest(s: Scenario, kind: StressKind, custom: number[] = [])
   return { base, stress, baseStats: incomeStats(base, infl), stressStats: incomeStats(stress, infl) }
 }
 
-/* ───────── Strategy comparison (identical assumptions) ───────── */
+/* ───────── Strategy comparison (normalized first-year income) ───────── */
 
 export interface StrategyRow {
   strategy: WithdrawalStrategy
-  result: SimResult
+  /** The scenario this row was simulated from (the user's scenario with only the withdrawal rule changed). */
+  variant: Scenario
+  /** Null when the rule cannot be matched to the target (see `unmatched`). */
+  result: SimResult | null
   stats: IncomeStats | null
+  /** Percentage rate derived from the matched budget (percent-based rules), else null. */
+  rate: number | null
+  /** Planned first-year budget actually produced by the engine (annual, nominal). */
+  plannedAnnual: number | null
+  /** Paid in the first withdrawal year (annual, nominal). */
+  paidAnnual: number | null
+  /** Why the row is not comparable: the needed rate is outside 0–20 %, or a floor lifted the first year. */
+  unmatched: 'rate' | null
+  flooredStart: boolean
 }
 
-export function compareStrategies(s: Scenario): StrategyRow[] {
-  if (!s.withdrawal.enabled) return []
+export interface StrategyComparison {
+  /** ok = comparable; noIncome = the current withdrawal setting plans no income; noPortfolio = nothing at retirement. */
+  status: 'ok' | 'noIncome' | 'noPortfolio'
+  /** Strategy the target was read from (the user's selected rule). */
+  basis: WithdrawalStrategy
+  /** Planned first-year budget (annual, nominal at retirement). */
+  annual: number
+  monthly: number
+  monthlyReal: number
+  /** Portfolio at the first annual review. */
+  portfolio: number
+  startYear: number
+  startMonth: number
+  rows: StrategyRow[]
+}
+
+export const STRATEGIES: WithdrawalStrategy[] = ['fixed', 'initialPct', 'currentPct', 'guardrails']
+const MAX_RATE = 20
+
+/**
+ * Normalized comparison. The first-year spending budget B is read from the engine run of the user's
+ * own withdrawal setting; every strategy then starts from that same B:
+ *   fixed        — B/12 per month as a nominal amount at retirement (never re-scaled by inflation before it);
+ *   initialPct   — rate = B ÷ portfolio at the first review;  currentPct / guardrails — the same rate.
+ * Retirement start, portfolio, returns, fees, inflation, contribution rules, payment frequency, indexing
+ * and guardrail limits are the user's. The user's scenario is never modified (variants are copies).
+ * No arbitrary income is invented: a zero budget returns `noIncome`.
+ */
+export function compareStrategies(s: Scenario): StrategyComparison | null {
+  if (!s.withdrawal.enabled) return null
   const infl = inflationRate(s)
-  return (['fixed', 'initialPct', 'currentPct', 'guardrails'] as WithdrawalStrategy[]).map((strategy) => {
-    const variant: Scenario = { ...s, withdrawal: { ...s.withdrawal, strategy } }
-    const plan = toPlan(variant)
-    const result = simulate(plan)
-    return { strategy, result, stats: incomeStats(result, infl) }
+  const basisRes = simulate(toPlan(s))
+  const y0 = basisRes.withdrawalYears[0]
+  const empty = (status: StrategyComparison['status'], annual = 0, portfolio = 0, startMonth = 0): StrategyComparison => ({
+    status,
+    basis: s.withdrawal.strategy,
+    annual,
+    monthly: annual / 12,
+    monthlyReal: toReal(annual / 12, startMonth, infl),
+    portfolio,
+    startYear: s.withdrawal.startYear,
+    startMonth,
+    rows: [],
   })
+  if (!y0 || y0.months <= 0) return empty('noIncome')
+  const annual = y0.planned
+  const portfolio = y0.reviewBalance
+  if (!(annual > 0)) return empty('noIncome', 0, portfolio, y0.startMonth)
+  if (!(portfolio > 0)) return empty('noPortfolio', annual, portfolio, y0.startMonth)
+  const rate = (annual / portfolio) * 100
+  const rows = STRATEGIES.map((strategy): StrategyRow => {
+    const pct = strategy !== 'fixed'
+    const variant: Scenario = {
+      ...s,
+      withdrawal: pct
+        ? { ...s.withdrawal, strategy, rate }
+        : { ...s.withdrawal, strategy, amount: annual / 12, amountReal: false },
+    }
+    if (pct && rate > MAX_RATE) {
+      return { strategy, variant, result: null, stats: null, rate, plannedAnnual: null, paidAnnual: null, unmatched: 'rate', flooredStart: false }
+    }
+    const result = simulate(toPlan(variant))
+    const first = result.withdrawalYears[0]
+    return {
+      strategy,
+      variant,
+      result,
+      stats: incomeStats(result, infl),
+      rate: pct ? rate : null,
+      plannedAnnual: first ? first.planned : null,
+      paidAnnual: first ? first.paid : null,
+      unmatched: null,
+      flooredStart: !!first && Math.abs(first.planned - annual) > annual * 0.005,
+    }
+  })
+  return {
+    status: 'ok',
+    basis: s.withdrawal.strategy,
+    annual,
+    monthly: annual / 12,
+    monthlyReal: toReal(annual / 12, y0.startMonth, infl),
+    portfolio,
+    startYear: Math.floor(y0.startMonth / 12) + 1,
+    startMonth: y0.startMonth,
+    rows,
+  }
 }
 
 /** First-year budget preview for the strategy controls (same engine run as the results). */

@@ -38,7 +38,8 @@ interface Props {
   tooltipFormat: (v: number) => string
   xTickLabel: (year: number) => string
   tooltipTitle: (month: number) => string
-  goal?: { value: number; label: string } | null
+  /** Reference line. When it is far above the data it is NOT allowed to stretch the axis: `offLabel` is shown at the top instead. */
+  goal?: { value: number; label: string; offLabel?: string } | null
   markers?: Marker[]
   /** Shaded phases, e.g. the withdrawal period. */
   regions?: { start: number; end: number; label: string }[]
@@ -75,6 +76,9 @@ function buildPath(xs: number[], ys: (number | null)[]): string {
   }
   return d
 }
+
+/** A goal far above everything plotted would flatten the real data: it is shown as an off-scale note instead. */
+export const goalFarAbove = (goal: number, dataMax: number) => goal > Math.max(dataMax, 0) * 2.5
 
 export function XYChart({
   xs,
@@ -125,7 +129,7 @@ export function XYChart({
   const visible = series.filter((s) => !s.hidden)
   const maxMonth = xs[xs.length - 1] ?? 1
 
-  const { yTicks, yLo, yHi, labelW } = useMemo(() => {
+  const { yTicks, yLo, yHi, labelW, dataHi } = useMemo(() => {
     let lo = 0
     let hi = 0
     for (const s of visible) {
@@ -133,10 +137,11 @@ export function XYChart({
       for (const v of s.values) if (Number.isFinite(v)) lo = Math.min(lo, v)
       if (s.lower) for (const v of s.lower) if (Number.isFinite(v)) lo = Math.min(lo, v)
     }
-    if (goal && Number.isFinite(goal.value)) hi = Math.max(hi, goal.value * 1.04)
+    const dataMax = hi
+    if (goal && Number.isFinite(goal.value) && !goalFarAbove(goal.value, hi)) hi = Math.max(hi, goal.value * 1.04)
     const t = niceTicks(lo, hi * 1.02, height < 260 ? 4 : 5)
     const longest = Math.max(...t.ticks.map((v) => yFormat(v).length))
-    return { yTicks: t.ticks, yLo: t.lo, yHi: t.hi, labelW: Math.max(34, longest * 7 + 10) }
+    return { yTicks: t.ticks, yLo: t.lo, yHi: t.hi, labelW: Math.max(34, longest * 7 + 10), dataHi: dataMax }
   }, [visible, goal, height, yFormat])
 
   const left = PAD.left + labelW
@@ -330,7 +335,14 @@ export function XYChart({
               {l.text}
             </text>
           ))}
-          {goal && Number.isFinite(goal.value) && goal.value <= yHi && (
+          {goal && Number.isFinite(goal.value) && goalFarAbove(goal.value, dataHi) && goal.offLabel && (
+            <g className="xy-goal xy-goal--off">
+              <text x={left + plotW - 4} y={PAD.top + 12} textAnchor="end">
+                {`▲ ${goal.offLabel}`}
+              </text>
+            </g>
+          )}
+          {goal && Number.isFinite(goal.value) && !goalFarAbove(goal.value, dataHi) && goal.value <= yHi && (
             <g className="xy-goal">
               <line x1={left} x2={left + plotW} y1={sy(goal.value)} y2={sy(goal.value)} />
               <text x={left + plotW - 4} y={sy(goal.value) - 6} textAnchor="end">

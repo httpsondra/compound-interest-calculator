@@ -625,9 +625,12 @@ describe('V4.1 case F — saved V4 plans give identical results', () => {
     expectSame(old, now)
     expectSameGoals(old, now)
     const a = v4r.compareStrategies(old)
-    const b = compareStrategies(now)
+    const b = compareStrategies(now)!.rows
     expect(b.map((r) => r.strategy)).toEqual(a.map((r) => r.strategy))
-    for (let i = 0; i < a.length; i++) expect(b[i].result.balances).toEqual(a[i].result.balances)
+    // V4 compared each rule with its own settings; V5.2.1 normalizes the starting income. The row of the
+    // user's own rule is that same simulation, so it must reproduce V4 exactly (to rounding of the derived rate).
+    const own = b.findIndex((r) => r.strategy === now.withdrawal.strategy)
+    for (let m = 0; m < a[own].result.balances.length; m++) expect(b[own].result!.balances[m]).toBeCloseTo(a[own].result.balances[m], 4)
   })
   it('v3 plans from the first V4.1 preview keep their withdrawal; a percentage plan keeps its goal', () => {
     const v3 = { ...plan(), v: 3, retirement: { income: 40_000, real: true }, withdrawal: { ...plan().withdrawal, amount: undefined, amountReal: undefined } }

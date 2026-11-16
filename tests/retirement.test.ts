@@ -157,9 +157,9 @@ describe('stress tests', () => {
 describe('strategy comparison and Monte Carlo', () => {
   it('compares strategies under identical assumptions (same accumulation, only the policy differs)', () => {
     const s = retiree({ startYear: 11 }, { initial: 1_000_000, constant: { amount: 20_000, frequency: 'monthly' } })
-    const rows = compareStrategies(s)
+    const rows = compareStrategies(s)!.rows
     expect(rows.map((r) => r.strategy)).toEqual(['fixed', 'initialPct', 'currentPct', 'guardrails'])
-    const b = rows.map((r) => r.result.balances[120])
+    const b = rows.map((r) => r.result!.balances[120])
     for (const v of b) expect(v).toBeCloseTo(b[0], 6)
   })
   it('current-portfolio % never depletes, yet can fail to fund the desired income', () => {

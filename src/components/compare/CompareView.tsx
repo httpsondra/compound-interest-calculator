@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useI18n } from '../../i18n'
 import { computeSummary } from '../../model/compute'
-import { WITHDRAWAL_STRATEGIES, incomeTarget, inflationRate, scaledAmount, totalMonths, uid, type Scenario } from '../../model/scenario'
-import { incomeStats } from '../../model/retirement'
+import { incomeTarget, monthlyToPayment, inflationRate, scaledAmount, totalMonths, uid, type Scenario } from '../../model/scenario'
+import { compareStrategies, incomeStats } from '../../model/retirement'
+import { applyVariant, contributionStep, type VariantId } from '../../model/variants'
 import { evaluateIncome } from '../../engine/income'
 import { MAX_SCENARIOS } from '../../state/store'
 import { useApp } from '../../state/context'
@@ -13,7 +14,6 @@ import { Menu, Segmented } from '../ui/controls'
 import { HelpTip } from '../ui/HelpTip'
 
 const COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)']
-type VariantId = 'plusContribution' | 'returnDown' | 'returnUp' | 'longer' | 'fees'
 
 export default function CompareView({ onOpen }: { onOpen: () => void }) {
   const i18n = useI18n()
@@ -36,45 +36,52 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
     store.setDoc((d) => ({ ...d, scenarios: [...d.scenarios, sc] }))
   }
 
-  /** A copy of `base` with one change applied, and the name of that change. Pure: used for previews and for adding. */
+  /** The scenario of a preset (shared pure model code) and its label. Used for previews and for adding. */
   const build = (id: VariantId, base: Scenario): { sc: Scenario; label: string } => {
-    const delta = scaledAmount(1000, base.currency)
-    let sc: Scenario = { ...base, id: uid('sc') }
-    let label = ''
+    const sc = applyVariant(id, base)
+    const delta = contributionStep(base.currency)
     switch (id) {
       case 'plusContribution':
-        sc =
-          base.contribMode === 'constant'
-            ? { ...sc, constant: { ...sc.constant, amount: sc.constant.amount + delta } }
-            : { ...sc, periods: sc.periods.map((p) => ({ ...p, id: uid('p'), amount: p.paused ? p.amount : p.amount + delta })) }
-        label = fill(t.compare.variants.plusContribution, {
-          amount: f.money(delta, base.currency),
-          per: base.contribMode === 'constant' ? t.per[base.constant.frequency] : t.per.monthly,
-        })
-        break
+        return {
+          sc,
+          label: fill(t.compare.variants.plusContribution, {
+            amount: f.money(base.contribMode === 'constant' ? monthlyToPayment(delta, base.constant.frequency) : delta, base.currency),
+            per: base.contribMode === 'constant' ? t.per[base.constant.frequency] : t.per.monthly,
+          }),
+        }
       case 'returnDown':
-        sc = { ...sc, annualReturn: base.annualReturn - 1 }
-        label = t.compare.variants.returnDown
-        break
+        return { sc, label: t.compare.variants.returnDown }
       case 'returnUp':
-        sc = { ...sc, annualReturn: base.annualReturn + 1 }
-        label = t.compare.variants.returnUp
-        break
+        return { sc, label: t.compare.variants.returnUp }
       case 'longer':
-        sc = { ...sc, horizonYears: Math.min(100, base.horizonYears + 5) }
-        label = t.compare.variants.longer
-        break
+        return { sc, label: t.compare.variants.longer }
       case 'fees':
-        sc = { ...sc, feesEnabled: true, fees: { ...sc.fees, annual: (base.feesEnabled ? base.fees.annual : 0) + 1 } }
-        label = t.compare.variants.fees
-        break
+        return { sc, label: t.compare.variants.fees }
     }
-    return { sc, label }
   }
 
   const variant = (id: VariantId) => {
     const { sc, label } = build(id, active)
     add({ ...sc, name: `${name(active, scenarios.indexOf(active))} · ${label}`.slice(0, 60) })
+  }
+
+  /** One plain sentence on what a preset really changes (it is the same change `build` applies). */
+  const hintFor = (id: VariantId, b: Scenario): string => {
+    const h = t.compare.hints
+    switch (id) {
+      case 'plusContribution':
+        return b.contribMode === 'constant'
+          ? fill(h.plusConstant, { amount: f.money(monthlyToPayment(contributionStep(b.currency), b.constant.frequency), b.currency), per: t.per[b.constant.frequency] })
+          : fill(h.plusSchedule, { amount: f.money(contributionStep(b.currency), b.currency) })
+      case 'returnUp':
+      case 'returnDown':
+        return h.returnPp
+      case 'fees':
+        return h.fees
+      case 'longer':
+        if (!b.withdrawal.enabled) return h.longerPlain
+        return b.withdrawal.endYear == null ? h.longerWithdrawals : h.longerWithdrawalsEnd
+    }
   }
 
   // What each quick preset would do to the final value (single-scenario start screen only).
@@ -84,26 +91,28 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
     return (['plusContribution', 'returnUp', 'returnDown', 'longer', 'fees'] as VariantId[]).map((id) => {
       const { sc, label } = build(id, scenarios[0])
       const fin = computeSummary(sc)?.result.totals.final
-      return { id, label, delta: base != null && fin != null ? fin - base : null }
+      return { id, label, hint: hintFor(id, scenarios[0]), delta: base != null && fin != null ? fin - base : null }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenarios, summaries, t, f])
 
-  // Same plan, only the withdrawal rule differs (identical assumptions).
+  // Same plan and the same starting retirement income; only the withdrawal rule differs (see compareStrategies).
   const strategyVariants = () => {
     const room = MAX_SCENARIOS - scenarios.length
     if (room <= 0) {
       toast(fill(t.compare.max, { max: MAX_SCENARIOS }))
       return
     }
-    const add = WITHDRAWAL_STRATEGIES.filter((st) => st !== active.withdrawal.strategy)
+    const cmp = compareStrategies(active)
+    if (!cmp || cmp.status !== 'ok') {
+      toast(cmp?.status === 'noPortfolio' ? t.retire.noPortfolio : t.retire.noIncome)
+      return
+    }
+    const nm = name(active, scenarios.indexOf(active))
+    const add = cmp.rows
+      .filter((r) => r.result && r.strategy !== active.withdrawal.strategy)
       .slice(0, room)
-      .map((st) => ({
-        ...active,
-        id: uid('sc'),
-        name: `${name(active, scenarios.indexOf(active))} · ${t.retire.strategies[st]}`.slice(0, 60),
-        withdrawal: { ...active.withdrawal, strategy: st },
-      }))
+      .map((r) => ({ ...r.variant, id: uid('sc'), name: `${nm} · ${t.retire.strategies[r.strategy]}`.slice(0, 60) }))
     store.setDoc((d) => ({ ...d, scenarios: [...d.scenarios, ...add] }))
   }
 
@@ -228,8 +237,10 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
   const base = scenarios[0]
   const single = scenarios.length === 1
 
-  // The headline: which scenario ends highest and by how much (same currency only: amounts are never converted).
+  // The headline: which scenario has the highest FINAL VALUE (same currency only: amounts are never converted).
+  // This is a statement about one figure, not a verdict: plans may differ in length, withdrawals, risk or goals.
   let bestLine: string | null = null
+  let bestCaveat: string | null = null
   if (!single && !mixedCurrency) {
     let bi = 0
     scenarios.forEach((_, i) => {
@@ -237,11 +248,21 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
     })
     const v = finalOf(bi)
     const b0 = finalOf(0)
+    const basis = real && anyInflation ? t.compare.inTodays : ''
     if (v != null && b0 != null)
       bestLine =
         bi === 0
-          ? fill(t.compare.bestBase, { name: name(scenarios[0], 0), value: f.money(v, currency) })
-          : fill(t.compare.best, { name: name(scenarios[bi], bi), value: f.money(v, currency), delta: f.money(v - b0, currency), base: name(scenarios[0], 0) })
+          ? fill(t.compare.best, { name: name(scenarios[0], 0), value: f.money(v, currency), basis })
+          : fill(t.compare.bestDelta, { name: name(scenarios[bi], bi), value: f.money(v, currency), delta: f.money(v - b0, currency), base: name(scenarios[0], 0), basis })
+    const diffs: string[] = []
+    if (new Set(scenarios.map((s) => totalMonths(s))).size > 1) diffs.push(t.compare.diffLength)
+    const wd = (s: Scenario) => {
+      const w = s.withdrawal
+      return w.enabled ? [w.strategy, w.amount, w.amountReal, w.rate, w.startYear, w.endYear, w.frequency, w.indexed, w.maxIncrease, w.maxDecrease, w.floor].join('|') : 'off'
+    }
+    if (scenarios.some((s) => wd(s) !== wd(base)))
+      diffs.push(t.compare.diffWithdrawals)
+    if (diffs.length) bestCaveat = fill(t.compare.caveat, { what: diffs.join(` ${t.compare.and} `) })
   }
 
   // Rows where every scenario gives the same answer say nothing: hidden unless asked for.
@@ -334,8 +355,9 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
                 <li key={p.id}>
                   <button type="button" className="preset" onClick={() => variant(p.id)}>
                     <span className="preset-label">{p.label}</span>
+                    <span className="preset-hint">{p.hint}</span>
                     {p.delta != null && Math.abs(p.delta) >= 0.5 && (
-                      <span className={`preset-effect ${p.delta > 0 ? 'is-pos' : 'is-neg'}`}>
+                      <span className="preset-effect">
                         {fill(t.compare.presetEffect, { delta: f.money(p.delta, base.currency, { signed: true, compact: true }) })}
                       </span>
                     )}
@@ -350,6 +372,7 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
                 </li>
               )}
             </ul>
+            <p className="note preset-basis">{t.compare.presetBasis}</p>
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => add({ ...base, id: uid('sc'), name: `${name(base, 0)} (${t.compare.copySuffix})`.slice(0, 60) })}>
               <Icon name="copy" size={15} />
               {t.compare.duplicateCurrent}
@@ -359,9 +382,12 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
       ) : (
         <>
           {bestLine && (
-            <p className="cmp-best" role="status">
-              {bestLine}
-            </p>
+            <div className="cmp-best-wrap">
+              <p className="cmp-best" role="status">
+                {bestLine}
+              </p>
+              {bestCaveat && <p className="note cmp-caveat">{bestCaveat}</p>}
+            </div>
           )}
           <div className="compare-grid">
             {scenarios.map((s, i) => {
@@ -397,7 +423,7 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
                   </div>
                   <p className="scen-final">{v != null ? f.money(v, s.currency) : '—'}</p>
                   {delta != null && Math.abs(delta) >= 0.5 && (
-                    <p className={`scen-delta ${delta > 0 ? 'is-pos' : 'is-neg'}`}>
+                    <p className="scen-delta">
                       {f.money(delta, s.currency, { signed: true })} <span>{fill(t.compare.diff, { name: name(base, 0) })}</span>
                     </p>
                   )}
@@ -525,7 +551,7 @@ export default function CompareView({ onOpen }: { onOpen: () => void }) {
                             <td key={s.id}>
                               <span className="ct-val">{v != null ? f.money(v, s.currency) : '—'}</span>
                               {diff != null && Math.abs(diff) >= 0.5 && (
-                                <span className={`ct-diff ${(diff > 0) !== !!m.lowerIsBetter ? 'is-pos' : 'is-neg'}`}>
+                                <span className="ct-diff">
                                   {f.money(diff, s.currency, { signed: true, compact: true })} {fill(t.compare.diff, { name: name(scenarios[0], 0) })}
                                 </span>
                               )}

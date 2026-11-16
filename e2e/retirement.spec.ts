@@ -84,7 +84,7 @@ test('strategies open side by side in Compare with retirement metrics', async ({
 test('Risk view reports the chance of funding the desired income', async ({ page }) => {
   await loadFiPreset(page)
   await page.getByRole('link', { name: 'Risk', exact: true }).click()
-  await expect(page.getByText(/Chance of at least €[\d,]+ a month in every year/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/chance of at least €[\d,]+ a month in every year/)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('Lowest monthly income during retirement')).toBeVisible()
 })
 
